@@ -31,6 +31,7 @@
 
     <exam-tabbar active="album" />
     <exam-toast />
+    <exam-privacy />
   </view>
 </template>
 

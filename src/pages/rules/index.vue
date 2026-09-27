@@ -43,6 +43,7 @@
     </view>
 
     <exam-toast />
+    <exam-privacy />
   </view>
 </template>
 

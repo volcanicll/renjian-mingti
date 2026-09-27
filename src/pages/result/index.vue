@@ -172,6 +172,7 @@
     <!-- 海报离屏画布 -->
     <canvas id="poster" type="2d" class="poster-canvas" />
     <exam-toast />
+    <exam-privacy />
   </view>
 </template>
 

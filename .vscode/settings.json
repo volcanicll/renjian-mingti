@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "manifest.json": "jsonc",
+    "pages.json": "jsonc",
+    "project.config.json": "jsonc"
+  }
+}

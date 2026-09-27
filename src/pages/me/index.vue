@@ -85,6 +85,7 @@
 
     <exam-tabbar active="me" />
     <exam-toast />
+    <exam-privacy />
   </view>
 </template>
 
