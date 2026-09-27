@@ -11,7 +11,7 @@
 |---|---|
 | 开通云开发 | 微信开发者工具 → 云开发按钮 → 创建环境（按量付费免费额度足够比赛用） |
 | 环境 ID | 复制环境 ID，填入 `src/config/index.js` 的 `CLOUD_ENV`，并把 `USE_CLOUD` 改为 `true` |
-| AppID | 注册小程序，把 appid 填入 `src/manifest.json` 的 `mp-weixin.appid` |
+| AppID | 注册小程序，仅在本地把 appid 填入 `src/manifest.json` 的 `mp-weixin.appid`，不要提交真实值 |
 | 构建 | 执行 `npm run build:mp-weixin`，在开发者工具中导入 `dist/build/mp-weixin` |
 
 ## 2. 部署云函数

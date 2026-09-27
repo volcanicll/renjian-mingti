@@ -49,7 +49,7 @@ npm run dev:h5
 
 ### 云开发模式
 
-1. 将 `src/manifest.json` 中 `mp-weixin.appid` 设为真实 AppID。
+1. 在本地将 `src/manifest.json` 中 `mp-weixin.appid` 设为真实 AppID；提交前恢复为空值。即使 AppID 不是 AppSecret，GitHub Secret Scanning 也会识别并要求处理，因此不要将真实值提交到仓库。
 2. 将 `src/config/index.js` 中 `CLOUD_ENV` 设为云环境 ID，并把 `USE_CLOUD` 改为 `true`。
 3. 按 [../cloudfunctions/README.md](../cloudfunctions/README.md) 创建集合、部署云函数并配置环境变量。
 4. 重新执行 `npm run dev:mp-weixin` 或 `npm run build:mp-weixin`。
@@ -114,7 +114,7 @@ cloudfunctions/main         鉴权、游戏规则、数据库、AI、消息
 
 ### 构建后开发者工具显示 `touristappid`
 
-演示模式可以继续使用测试号。真机、云能力或发布前，必须在 `src/manifest.json` 的 `mp-weixin.appid` 填入真实 AppID 后重新构建。
+演示模式可以继续使用测试号。真机、云能力或发布前，在本地将真实 AppID 填入 `src/manifest.json` 的 `mp-weixin.appid` 后重新构建；不要把真实 AppID 提交到 Git。
 
 ### 云函数提示没有身份
 

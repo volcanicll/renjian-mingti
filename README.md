@@ -71,7 +71,7 @@ npm run dev:h5
 
 ### 方式二：云开发模式
 
-1. 在微信公众平台注册小程序，并将 AppID 填入 `src/manifest.json` 的 `mp-weixin.appid`。
+1. 在微信公众平台注册小程序，并在本地将 AppID 填入 `src/manifest.json` 的 `mp-weixin.appid`。真实 AppID 仅用于本地构建，不要提交；仓库内保留空值或 `touristappid`。
 2. 在微信开发者工具中开通云开发，把环境 ID 填入 `src/config/index.js` 的 `CLOUD_ENV`。
 3. 将 `src/config/index.js` 的 `USE_CLOUD` 改为 `true`。
 4. 创建 `users / rounds / entries / votes / guesses / prompts / counters` 集合。

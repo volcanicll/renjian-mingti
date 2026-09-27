@@ -24,7 +24,7 @@ refactor: 抽离揭晓墙 DTO
 
 ### 所有改动
 
-- [ ] 不包含密钥、隐私数据和无必要的生成文件。
+- [ ] 不包含密钥、真实小程序 AppID、隐私数据和无必要的生成文件。
 - [ ] 新增行为有明确错误处理，不把底层云能力泄漏到页面。
 - [ ] 文档字段、路径和命令与实际代码一致。
 
@@ -59,5 +59,6 @@ npm run build:mp-weixin
 | `src/api/index.js` 字段或方法 | `docs/DATA_CONTRACT.md` |
 | 玩法状态、时限、奖项 | `README.md`、相关策划/玩法文档、冒烟测试 |
 | 云函数 action 或集合 | `docs/DATA_CONTRACT.md`、`cloudfunctions/README.md` |
+| 本地 AppID / 云环境配置 | `README.md`、`docs/DEVELOPMENT.md` |
 | 构建、启动、测试命令 | `README.md`、`docs/DEVELOPMENT.md` |
 | 架构边界或降级策略 | `docs/ARCHITECTURE.md` |
