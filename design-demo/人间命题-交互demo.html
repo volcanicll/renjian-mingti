@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人间命题 · 交互设计稿</title>
+<style>
+  :root{
+    --paper:#FAF7EF;        /* 讲义白 */
+    --paper-dim:#F1ECDF;
+    --grid:rgba(122,168,160,.22);   /* 方格青 */
+    --ink:#23324D;          /* 钢笔蓝黑 */
+    --ink-soft:#4A5872;
+    --red:#D6482F;          /* 批改朱 */
+    --red-deep:#B93A24;
+    --pencil:#8B8B83;       /* 铅笔灰 */
+    --hi:#F5D94E;           /* 荧光黄 */
+    --board:#22382F;        /* 黑板绿（桌面） */
+    --chalk:#EDE9DC;
+    --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;
+    --song:"Songti SC","STSong","SimSun",serif;
+    --hei:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(ellipse at 20% 10%,rgba(255,255,255,.05),transparent 50%),
+      radial-gradient(ellipse at 80% 90%,rgba(255,255,255,.04),transparent 50%),
+      var(--board);
+    font-family:var(--hei);color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;padding:28px 16px 40px;
+  }
+  /* ===== 黑板桌面 ===== */
+  .desk-title{
+    font-family:var(--kai);color:var(--chalk);text-align:center;margin-bottom:6px;
+    font-size:26px;letter-spacing:.35em;text-indent:.35em;
+  }
+  .desk-sub{
+    font-family:var(--kai);color:rgba(237,233,220,.55);font-size:13px;
+    letter-spacing:.2em;margin-bottom:22px;text-align:center;line-height:1.9;
+  }
+  .desk-note{
+    margin-top:20px;font-family:var(--kai);color:rgba(237,233,220,.5);
+    font-size:12.5px;letter-spacing:.12em;text-align:center;line-height:2;
+  }
+  /* ===== 手机壳 ===== */
+  .phone{
+    width:390px;max-width:100%;height:800px;background:#101216;border-radius:46px;
+    padding:12px;box-shadow:0 30px 60px rgba(0,0,0,.5),inset 0 0 0 2px #2a2d33;
+    position:relative;flex:none;
+  }
+  .phone::after{ /* 灵岛 */
+    content:"";position:absolute;top:24px;left:50%;transform:translateX(-50%);
+    width:110px;height:26px;background:#101216;border-radius:14px;z-index:60;
+  }
+  .screen{
+    width:100%;height:100%;background:var(--paper);border-radius:34px;overflow:hidden;
+    position:relative;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:26px 26px;
+  }
+  @media (max-width:480px){
+    body{padding:0}
+    .desk-title,.desk-sub,.desk-note{display:none}
+    .phone{width:100%;height:100vh;height:100dvh;border-radius:0;padding:0;box-shadow:none}
+    .phone::after{display:none}
+    .screen{border-radius:0}
+  }
+  /* ===== 视图路由 ===== */
+  .view{position:absolute;top:0;left:0;right:0;bottom:57px;display:none;flex-direction:column;overflow:hidden}
+  .view.on{display:flex}
+  .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  /* ===== 通用元件 ===== */
+  .pad{padding:56px 18px 20px}
+  .topbar{
+    padding:52px 18px 10px;display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:2px solid var(--ink);margin:0 0 14px;background:transparent;
+  }
+  .brand{font-family:var(--kai);font-weight:700;font-size:21px;letter-spacing:.14em}
+  .brand em{font-style:normal;color:var(--red)}
+  .topbar .meta{font-family:var(--mono);font-size:11px;color:var(--pencil)}
+  /* 密封线 */
+  .seal-line{
+    display:flex;align-items:center;gap:8px;margin:16px 0;color:var(--pencil);
+    font-family:var(--song);font-size:11px;letter-spacing:.5em;white-space:nowrap;overflow:hidden;
+  }
+  .seal-line::before,.seal-line::after{
+    content:"";flex:1;border-top:1.5px dashed rgba(139,139,131,.55);
+  }
+  /* 装订孔卡片 */
+  .sheet-card{
+    background:#fff;border:1.5px solid var(--ink);border-radius:6px;position:relative;
+    box-shadow:3px 3px 0 rgba(35,50,77,.14);
+  }
+  .holes::before,.holes::after{
+    content:"";position:absolute;left:9px;width:7px;height:7px;border-radius:50%;
+    background:var(--paper);border:1.5px solid var(--pencil);box-shadow:inset 1px 1px 1px rgba(0,0,0,.15);
+  }
+  .holes::before{top:16%}.holes::after{bottom:16%}
+  .btn{
+    display:block;width:100%;padding:13px 16px;border-radius:10px;border:1.5px solid var(--ink);
+    font-family:var(--hei);font-weight:600;font-size:15px;letter-spacing:.2em;text-indent:.2em;
+    cursor:pointer;text-align:center;transition:transform .08s ease, box-shadow .08s ease;
+    background:#fff;color:var(--ink);
+  }
+  .btn:active{transform:translateY(2px)}
+  .btn.primary{background:var(--ink);color:var(--paper);box-shadow:3px 3px 0 rgba(214,72,47,.85)}
+  .btn.primary:active{box-shadow:1px 1px 0 rgba(214,72,47,.85)}
+  .btn.red{background:var(--red);border-color:var(--red-deep);color:#fff;box-shadow:3px 3px 0 rgba(35,50,77,.3)}
+  .btn[disabled]{opacity:.4;pointer-events:none}
+  .tag-hl{background:linear-gradient(transparent 55%,var(--hi) 55%);font-weight:700}
+  /* ===== 首页 ===== */
+  .exam-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 8px}
+  .exam-head .no{font-family:var(--mono);font-size:11px;color:var(--pencil);letter-spacing:.08em}
+  .exam-badge{
+    font-family:var(--kai);font-size:11px;color:var(--red);border:1px solid var(--red);
+    padding:2px 7px;border-radius:3px;letter-spacing:.2em;text-indent:.2em;
+  }
+  .prompt-title{
+    font-family:var(--kai);font-weight:700;font-size:27px;line-height:1.45;
+    padding:10px 8px 14px;letter-spacing:.06em;
+  }
+  .prompt-note{font-size:12px;color:var(--ink-soft);line-height:1.8;padding:0 8px 14px}
+  .home-actions{padding:14px 4px 4px;display:flex;gap:10px}
+  .home-actions .btn{flex:1}
+  .round-item{
+    display:flex;align-items:center;gap:12px;padding:13px 14px 13px 26px;margin-bottom:10px;
+    cursor:pointer;
+  }
+  .round-item .emoji{font-size:24px}
+  .round-item .info{flex:1;min-width:0}
+  .round-item .rname{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .round-item .rsub{font-size:11.5px;color:var(--pencil);margin-top:3px;font-family:var(--mono)}
+  .round-item .go{color:var(--red);font-family:var(--kai);font-size:13px;letter-spacing:.1em}
+  .sec-label{
+    display:flex;align-items:baseline;gap:8px;margin:20px 4px 10px;
+    font-family:var(--kai);font-size:14px;letter-spacing:.25em;color:var(--ink);
+  }
+  .sec-label small{font-family:var(--mono);font-size:10px;color:var(--pencil);letter-spacing:.05em}
+  /* ===== Tab 栏 ===== */
+  .tabbar{
+    flex:none;display:flex;background:var(--paper);border-top:1.5px solid var(--ink);
+    padding:6px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+  .tabbar button{
+    flex:1;background:none;border:none;font-family:var(--kai);font-size:13px;letter-spacing:.3em;
+    text-indent:.3em;color:var(--pencil);cursor:pointer;padding:7px 0;position:relative;
+  }
+  .tabbar button.on{color:var(--ink);font-weight:700}
+  .tabbar button.on::after{
+    content:"";position:absolute;left:32%;right:32%;bottom:1px;height:3px;background:var(--red);
+    transform:rotate(-1.6deg);
+  }
+  /* ===== 局内页 ===== */
+  .countdown{font-family:var(--mono);font-size:38px;font-weight:700;letter-spacing:.06em;text-align:center;padding:6px 0 2px}
+  .countdown small{display:block;font-family:var(--kai);font-size:11px;color:var(--pencil);letter-spacing:.4em;text-indent:.4em;font-weight:400}
+  .submitted-strip{
+    display:flex;gap:8px;justify-content:center;padding:14px 0 4px;flex-wrap:wrap;
+  }
+  .submitted-strip .av{
+    width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:20px;background:#fff;border:1.5px dashed var(--pencil);opacity:.45;
+  }
+  .submitted-strip .av.done{border:1.5px solid var(--ink);opacity:1;box-shadow:2px 2px 0 rgba(35,50,77,.18)}
+  .shutter-zone{text-align:center;padding:18px 0 8px}
+  .shutter{
+    width:84px;height:84px;border-radius:50%;border:3px solid var(--ink);background:#fff;
+    margin:0 auto;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    font-size:30px;box-shadow:4px 4px 0 rgba(214,72,47,.8);transition:transform .1s;
+  }
+  .shutter:active{transform:scale(.94) rotate(-4deg)}
+  .shutter-hint{font-family:var(--kai);font-size:12.5px;color:var(--ink-soft);margin-top:12px;letter-spacing:.15em}
+  .my-photo-wrap{display:flex;justify-content:center;padding:10px 0 4px}
+  /* 拍立得 */
+  .polaroid{
+    background:#fff;padding:10px 10px 12px;border:1px solid rgba(35,50,77,.25);
+    box-shadow:4px 5px 12px rgba(35,50,77,.22);width:172px;position:relative;
+  }
+  .polaroid .ph{
+    height:150px;display:flex;align-items:center;justify-content:center;font-size:64px;
+    background:linear-gradient(135deg,var(--pc1,#CFE3DD),var(--pc2,#EFE3C2));
+  }
+  .polaroid .cap{
+    font-family:var(--kai);font-size:13px;text-align:center;margin-top:9px;color:var(--ink);
+    letter-spacing:.05em;
+  }
+  .tape{
+    position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(-3deg);
+    width:74px;height:20px;background:rgba(245,217,78,.75);box-shadow:0 1px 2px rgba(0,0,0,.12);
+  }
+  /* ===== 揭晓墙 ===== */
+  .wall-progress{
+    display:flex;justify-content:space-between;align-items:center;padding:2px 4px 12px;
+  }
+  .wall-progress .cnt{font-family:var(--mono);font-size:12px;color:var(--red);font-weight:700}
+  .wall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:2px 2px 18px}
+  .wall-card{cursor:pointer;transform:rotate(var(--tilt,0deg));transition:transform .12s}
+  .wall-card:active{transform:rotate(var(--tilt,0deg)) scale(.97)}
+  .wall-card .polaroid{width:100%}
+  .wall-card .ph{height:108px;font-size:46px}
+  .wall-card .cap{font-size:11.5px}
+  .wall-card .voted-mark{
+    position:absolute;top:6px;right:6px;font-family:var(--kai);font-size:10.5px;color:#fff;
+    background:var(--red);padding:2px 6px;border-radius:3px;letter-spacing:.1em;display:none;
+  }
+  .wall-card.voted .voted-mark{display:block}
+  /* ===== 底部弹层 ===== */
+  .overlay{
+    position:absolute;inset:0;background:rgba(20,28,44,.45);z-index:80;display:none;
+    align-items:flex-end;
+  }
+  .overlay.on{display:flex}
+  .sheetup{
+    background:var(--paper);width:100%;max-height:88%;overflow-y:auto;border-radius:20px 20px 0 0;
+    border-top:2px solid var(--ink);padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    scrollbar-width:none;
+  }
+  .sheetup::-webkit-scrollbar{display:none}
+  .grab{width:42px;height:4px;border-radius:2px;background:var(--pencil);opacity:.5;margin:0 auto 14px}
+  .opt-row{display:flex;gap:10px;margin:12px 0 4px}
+  .opt{
+    flex:1;border:1.5px solid var(--ink);border-radius:8px;background:#fff;padding:12px 8px;
+    text-align:center;cursor:pointer;font-size:13px;font-weight:600;
+  }
+  .opt small{display:block;font-weight:400;font-size:10.5px;color:var(--pencil);margin-top:4px;font-family:var(--mono)}
+  .opt.sel{background:var(--ink);color:var(--paper)}
+  .opt.sel small{color:rgba(250,247,239,.6)}
+  /* 详情猜人 */
+  .guess-row{display:flex;justify-content:space-between;gap:8px;margin:14px 0 6px}
+  .guess{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+    background:#fff;border:1.5px solid var(--ink);border-radius:10px;padding:10px 4px 8px;
+    font-size:12px;font-weight:600;transition:transform .1s;
+  }
+  .guess .face{font-size:26px}
+  .guess.right{background:#DFF0DF;border-color:#3E7C3A;color:#2C5A29}
+  .guess.wrong{animation:shake .3s;border-color:var(--red);color:var(--red);opacity:.6}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .vote-row{display:flex;gap:10px;margin-top:14px}
+  .vote-btn{
+    flex:1;padding:11px;border-radius:9px;border:1.5px solid var(--ink);background:#fff;
+    font-family:var(--kai);font-size:14.5px;letter-spacing:.15em;cursor:pointer;font-weight:700;
+  }
+  .vote-btn.best.sel{background:var(--red);border-color:var(--red-deep);color:#fff}
+  .vote-btn.lazy.sel{background:var(--hi);border-color:#C9A93A;color:var(--ink)}
+  .judge-line{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.7;min-height:20px}
+</style>
+</head>
+<body>
+  <div class="desk-title">人 间 命 题</div>
+  <div class="desk-sub">交互设计稿 · 点击可玩 —— AI 出题，全人类作答</div>
+
+  <div class="phone">
+    <div class="screen">
+      <style>
+        /* ===== 结算页元件 ===== */
+        .award-block{position:relative;padding:16px 16px 14px 30px;margin-bottom:16px}
+        .award-label{
+          display:inline-block;font-family:var(--kai);font-size:12px;letter-spacing:.3em;text-indent:.3em;
+          color:#fff;background:var(--ink);padding:3px 10px;border-radius:3px;margin-bottom:10px;
+        }
+        .award-flex{display:flex;gap:14px;align-items:center}
+        .award-flex .polaroid{width:128px;flex:none}
+        .award-flex .ph{height:104px;font-size:52px}
+        .award-flex .cap{font-size:11.5px}
+        .award-info{flex:1}
+        .award-owner{font-family:var(--kai);font-size:15px;font-weight:700;margin-bottom:6px}
+        .award-owner small{font-family:var(--mono);font-size:10px;color:var(--pencil);font-weight:400;display:block;margin-top:3px;letter-spacing:.05em}
+        /* 红章 */
+        .stamp{
+          position:absolute;top:8px;right:10px;width:74px;height:74px;border-radius:50%;
+          border:3px double var(--red);color:var(--red);display:flex;align-items:center;justify-content:center;
+          font-family:var(--kai);font-weight:700;font-size:21px;letter-spacing:.1em;text-indent:.1em;
+          transform:rotate(-14deg);opacity:.88;background:rgba(250,247,239,.35);
+          animation:stampIn .45s cubic-bezier(.2,1.6,.4,1) both;
+        }
+        .stamp.small{width:60px;height:60px;font-size:16px;top:auto;bottom:10px}
+        @keyframes stampIn{0%{transform:scale(2.4) rotate(-40deg);opacity:0}70%{transform:scale(.92) rotate(-11deg);opacity:.95}100%{transform:scale(1) rotate(-14deg);opacity:.88}}
+        /* AI 红笔点评 */
+        .ai-item{display:flex;gap:10px;padding:9px 4px;border-bottom:1px dashed rgba(139,139,131,.4);align-items:baseline}
+        .ai-item:last-child{border-bottom:none}
+        .ai-item .who{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--pencil)}
+        .ai-item .note{
+          font-family:var(--kai);color:var(--red);font-size:14px;line-height:1.7;
+          text-decoration:underline wavy rgba(214,72,47,.35);text-underline-offset:5px;
+        }
+        /* 战报海报 */
+        .poster{
+          background:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:16px;
+          box-shadow:4px 4px 0 rgba(35,50,77,.15);position:relative;overflow:hidden;
+        }
+        .poster .p-brand{font-family:var(--kai);font-weight:700;font-size:17px;letter-spacing:.25em}
+        .poster .p-brand em{font-style:normal;color:var(--red)}
+        .poster .p-line{border-top:1.5px dashed rgba(139,139,131,.5);margin:10px 0}
+        .poster .p-quote{font-family:var(--kai);font-size:13.5px;line-height:1.8;color:var(--ink-soft)}
+        .poster .p-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+        .poster .p-date{font-family:var(--mono);font-size:10px;color:var(--pencil)}
+        .qr{width:46px;height:46px;background:
+          conic-gradient(var(--ink) 25%,transparent 0 50%,var(--ink) 0 75%,transparent 0);
+          background-size:8px 8px;border:2.5px solid var(--ink);border-radius:4px}
+        /* 年鉴 */
+        .masonry{column-count:2;column-gap:12px;padding:2px}
+        .masonry .polaroid{width:100%;margin-bottom:12px;break-inside:avoid}
+        .masonry .ph{height:120px;font-size:48px}
+        .mastery-stat{display:flex;justify-content:space-around;text-align:center;padding:18px 8px}
+        .mastery-stat b{display:block;font-family:var(--mono);font-size:26px}
+        .mastery-stat span{font-family:var(--kai);font-size:12px;color:var(--ink-soft);letter-spacing:.2em}
+        .row-item{display:flex;justify-content:space-between;align-items:center;padding:13px 6px;border-bottom:1px dashed rgba(139,139,131,.4);font-size:14px}
+        .row-item:last-child{border-bottom:none}
+        .row-item .arr{color:var(--pencil)}
+        /* Toast */
+        .toast{
+          position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);
+          background:var(--ink);color:var(--paper);font-size:13px;padding:9px 18px;border-radius:8px;
+          opacity:0;pointer-events:none;transition:all .25s;z-index:99;white-space:nowrap;
+          font-family:var(--kai);letter-spacing:.08em;box-shadow:0 6px 16px rgba(0,0,0,.25);
+        }
+        .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+        .back-btn{background:none;border:none;font-family:var(--kai);font-size:15px;color:var(--red);cursor:pointer;letter-spacing:.1em}
+        @media (prefers-reduced-motion:reduce){
+          *{animation:none!important;transition:none!important}
+        }
+      </style>
+
+      <!-- ① 首页 -->
+      <section class="view on" id="view-home">
+        <div class="topbar">
+          <div class="brand">人间<em>命题</em></div>
+          <div class="meta">准考证 NO.1024</div>
+        </div>
+        <div class="scroll"><div style="padding:4px 18px 24px">
+          <div class="sheet-card holes" style="padding:16px 16px 14px 32px">
+            <div class="exam-head">
+              <span class="no">第 1024 题 · 每日一题</span>
+              <span class="exam-badge">今日必考</span>
+            </div>
+            <div class="prompt-title">拍下今天的风。</div>
+            <div class="prompt-note">本大题共 1 小题，满分 0 分。要求：现场真实拍摄；跑题不扣分，敷衍另有专门奖项。</div>
+            <div class="seal-line">密 封 线 内 请 不 要 答 题</div>
+            <div class="home-actions">
+              <button class="btn primary" onclick="openCreate()">开始一局</button>
+              <button class="btn" onclick="toast('已把今天的题抄进口袋')">先存着</button>
+            </div>
+          </div>
+
+          <div class="sec-label">进行中的局 <small>2 GAMES</small></div>
+          <div class="sheet-card round-item" onclick="goRound()">
+            <span class="emoji">🌬️</span>
+            <div class="info">
+              <div class="rname">阿黄发起 ·「拍下今天的风」</div>
+              <div class="rsub">已交卷 3/6 · 剩余 <span id="miniTimer">05:12:44</span></div>
+            </div>
+            <span class="go">进入 ›</span>
+          </div>
+          <div class="sheet-card round-item" onclick="toast('演示以「风」这一局为准')">
+            <span class="emoji">🍩</span>
+            <div class="info">
+              <div class="rname">我发起 ·「努力工作的圆形物体」</div>
+              <div class="rsub">已交卷 6/6 · 待揭晓</div>
+            </div>
+            <span class="go">揭晓 ›</span>
+          </div>
+
+          <div class="sec-label">昨日战报 <small>YESTERDAY</small></div>
+          <div class="sheet-card" style="padding:13px 14px 13px 28px">
+            <div style="font-size:12px;color:var(--pencil);margin-bottom:6px">命题：「拍下最没用的东西」</div>
+            <div style="font-size:13.5px;line-height:1.7">🏆 最绝奖 · 泡泡的<span class="tag-hl">「防狼喷雾（她没开过盖）」</span><br>🍬 最敷衍奖 · 大熊的「一张黑屏」（手机没解锁）</div>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- ② 局内 -->
+      <section class="view" id="view-round">
+        <div class="topbar">
+          <button class="back-btn" onclick="showView('view-home')">‹ 退出</button>
+          <div class="meta">阿黄的局 · 进行中</div>
+        </div>
+        <div class="scroll"><div style="padding:0 18px 24px">
+          <div class="countdown"><span id="timer">05:12:44</span><small>距 交 卷 截 止</small></div>
+          <div class="sheet-card" style="padding:14px 16px 14px 30px;margin-top:10px">
+            <div class="exam-head"><span class="no">第 1024 题</span><span class="exam-badge">本局考题</span></div>
+            <div class="prompt-title" style="font-size:22px;padding:4px 0 6px">拍下今天的风。</div>
+          </div>
+
+          <div class="submitted-strip" id="strip"></div>
+
+          <div class="shutter-zone" id="shutterZone">
+            <div class="shutter" onclick="submitPhoto()">📷</div>
+            <div class="shutter-hint" id="shutterHint">按下快门，十秒就好</div>
+          </div>
+
+          <div class="my-photo-wrap" id="myPhoto" style="display:none">
+            <div class="polaroid">
+              <div class="tape"></div>
+              <div class="ph" style="--pc1:#CFE0EA;--pc2:#EFE3C2">👕</div>
+              <div class="cap">它们在跳很慢的舞。</div>
+            </div>
+          </div>
+
+          <div style="margin-top:18px" id="ffWrap">
+            <button class="btn red" onclick="buildWall()">时间快进 · 直接揭晓（演示）</button>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- ③ 揭晓墙 -->
+      <section class="view" id="view-wall">
+        <div class="topbar">
+          <div class="brand" style="font-size:18px">揭晓墙</div>
+          <div class="meta">匿名阅卷中 · 作者保密</div>
+        </div>
+        <div class="scroll"><div style="padding:0 16px 24px">
+          <div class="wall-progress">
+            <span style="font-family:var(--kai);font-size:13px;letter-spacing:.2em">共 6 份答卷</span>
+            <span class="cnt" id="voteCnt">已审 0/6</span>
+          </div>
+          <div class="wall-grid" id="wallGrid"></div>
+          <button class="btn primary" id="goResultBtn" onclick="tryResult()">完成阅卷 · 去看结果</button>
+          <button class="btn" style="margin-top:10px" onclick="forceResult()">跳过阅卷（演示）</button>
+        </div></div>
+      </section>
+
+      <!-- ④ 结算 -->
+      <section class="view" id="view-result">
+        <div class="topbar">
+          <div class="brand" style="font-size:18px">阅卷结果</div>
+          <div class="meta">第 1024 题 · 风</div>
+        </div>
+        <div class="scroll"><div style="padding:0 18px 24px">
+          <div class="sheet-card award-block" id="blockLazy">
+            <span class="stamp small" style="animation-delay:.2s">敷衍</span>
+            <span class="award-label" style="background:#C9A93A">🍬 最敷衍奖</span>
+            <div class="award-flex">
+              <div class="polaroid"><div class="ph" style="--pc1:#E8DCCB;--pc2:#DDD5C4;height:96px;font-size:44px">😑</div></div>
+              <div class="award-info">
+                <div class="award-owner">软软<small>「他说他在感受风」</small></div>
+                <div style="font-size:12px;color:var(--ink-soft);line-height:1.7">奖励：下一局被@一次的权利。</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sheet-card award-block" id="blockBest">
+            <span class="stamp">最绝</span>
+            <span class="award-label" style="background:var(--red)">🏆 最绝奖</span>
+            <div class="award-flex">
+              <div class="polaroid"><div class="ph" style="--pc1:#CFE3DD;--pc2:#F0DFC0;height:96px;font-size:44px">🛍️</div></div>
+              <div class="award-info">
+                <div class="award-owner">泡泡<small>「它自由了」</small></div>
+                <div style="font-size:12px;color:var(--ink-soft);line-height:1.7">获得明日出题权，全群等她发难。</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="seal-line">AI 红 笔 点 评</div>
+          <div class="sheet-card" style="padding:8px 14px" id="aiList"></div>
+
+          <div class="sec-label">本局战报 <small>BATTLE REPORT</small></div>
+          <div class="poster">
+            <div class="p-brand">人间<em>命题</em> · 第 1024 题</div>
+            <div class="p-line"></div>
+            <div class="p-quote">「拍下今天的风」<br>最绝奖：泡泡 —— 它自由了。<br>"它自由了。你只能拍下它离开的背影。"</div>
+            <div class="p-foot">
+              <span class="p-date">2026.08.21 · 六人作答 · 满分 0 分</span>
+              <div class="qr"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px">
+            <button class="btn primary" onclick="usePower()">用出题权 · 再来一局</button>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- ⑤ 年鉴 -->
+      <section class="view" id="view-album">
+        <div class="topbar">
+          <div class="brand" style="font-size:18px">年鉴</div>
+          <div class="meta">HALL OF FAME · 往届最佳</div>
+        </div>
+        <div class="scroll"><div style="padding:0 16px 24px">
+          <div style="font-family:var(--kai);font-size:13px;color:var(--ink-soft);line-height:1.9;padding:2px 4px 14px">
+            各局最绝奖作品自动入册。人不多的时候，这里安静地替人类保管脑洞。
+          </div>
+          <div class="masonry" id="albumGrid"></div>
+        </div></div>
+      </section>
+
+      <!-- ⑥ 我的 -->
+      <section class="view" id="view-me">
+        <div class="topbar">
+          <div class="brand" style="font-size:18px">我的</div>
+          <div class="meta">学号 NO.1024</div>
+        </div>
+        <div class="scroll"><div style="padding:0 18px 24px">
+          <div class="sheet-card mastery-stat">
+            <div><b style="color:var(--red)">7</b><span>最绝奖</span></div>
+            <div><b>3</b><span>最敷衍奖</span></div>
+            <div><b style="color:var(--ink)">1</b><span>出题权</span></div>
+          </div>
+          <div class="sec-label">考场须知 <small>RULES</small></div>
+          <div class="sheet-card" style="padding:4px 14px">
+            <div class="row-item" onclick="toast('出题权：赢一局得一次')"><span>我的出题权</span><span class="arr">1 张 ›</span></div>
+            <div class="row-item" onclick="toast('跑题不扣分，敷衍有奖')"><span>考试说明</span><span class="arr">›</span></div>
+            <div class="row-item" onclick="toast('已收到，老师会处理的')"><span>举报一张答卷</span><span class="arr">›</span></div>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- 弹层：开局 -->
+      <div class="overlay" id="ov-create" onclick="if(event.target===this)closeOv('ov-create')">
+        <div class="sheetup">
+          <div class="grab"></div>
+          <div style="font-family:var(--kai);font-weight:700;font-size:19px;letter-spacing:.15em;margin-bottom:4px">开新的一局</div>
+          <div style="font-size:12px;color:var(--pencil)">选出题方式，发到群里就开学。</div>
+          <div class="opt-row" id="optRow">
+            <div class="opt sel" data-k="official">官方今日题<small>拍下今天的风</small></div>
+            <div class="opt" data-k="ai">AI 代出<small>帮你想个损的</small></div>
+            <div class="opt" data-k="custom">自己出<small>当一回老师</small></div>
+          </div>
+          <input id="customInput" placeholder="输入你的命题，例：拍下'等一下'" style="display:none;width:100%;margin-top:10px;padding:11px 12px;border:1.5px solid var(--ink);border-radius:8px;background:#fff;font-size:14px;font-family:var(--hei)">
+          <button class="btn primary" style="margin-top:14px" onclick="startRound()">发卷</button>
+          <div style="font-size:11px;color:var(--pencil);text-align:center;margin-top:10px">默认时限 24 小时 · 人齐也可提前开卷</div>
+        </div>
+      </div>
+
+      <!-- 弹层：答卷详情 -->
+      <div class="overlay" id="ov-detail" onclick="if(event.target===this)closeOv('ov-detail')">
+        <div class="sheetup">
+          <div class="grab"></div>
+          <div style="display:flex;justify-content:center" id="detailPhoto"></div>
+          <div style="font-family:var(--kai);font-size:13px;letter-spacing:.25em;text-align:center;margin-top:14px;color:var(--ink-soft)">猜 猜 这 是 谁 拍 的</div>
+          <div class="guess-row" id="guessRow"></div>
+          <div class="judge-line" id="judgeLine">点一位同学，看看你懂不懂他。</div>
+          <div class="vote-row">
+            <button class="vote-btn best" id="vBest" onclick="castVote('best')">🏆 最绝</button>
+            <button class="vote-btn lazy" id="vLazy" onclick="castVote('lazy')">🍬 最敷衍</button>
+          </div>
+          <button class="btn" style="margin-top:14px" onclick="closeOv('ov-detail')">关闭，继续阅卷</button>
+        </div>
+      </div>
+
+      <nav class="tabbar">
+        <button data-tab="home" class="on">首页</button>
+        <button data-tab="album">年鉴</button>
+        <button data-tab="me">我的</button>
+      </nav>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+
+  <p class="desk-note">演示路径：首页「开始一局」→ 按快门交卷 → 揭晓墙逐张点开猜人投票 → 去结算看盖章与红笔点评<br>桌面端体验最佳 · 数据为演示用假数据</p>
+
+  <script>
+    /* ================= 数据 ================= */
+    const players=[
+      {name:'我',face:'😎'},{name:'阿黄',face:'🐔'},{name:'泡泡',face:'🐱'},
+      {name:'老周',face:'🦊'},{name:'软软',face:'🐰'},{name:'大熊',face:'🐻'}
+    ];
+    const entries=[
+      {emoji:'👕',c1:'#CFE0EA',c2:'#EFE3C2',cap:'它们在跳很慢的舞。',owner:0,award:null,
+       note:'晾衣绳上的校服在无风自动，物理老师看了想辞职。'},
+      {emoji:'🌳',c1:'#D5E4C7',c2:'#EFE8CE',cap:'歪脖子树',owner:1,award:null,
+       note:'摄影师坚称风来了。作为证据，他提供了一棵树和一段模糊的信仰。'},
+      {emoji:'🛍️',c1:'#CFE3DD',c2:'#F0DFC0',cap:'它自由了',owner:2,award:'best',
+       note:'一只塑料袋的离家出走。你只能拍下它离开的背影，留不住的。'},
+      {emoji:'💇',c1:'#EBD9DC',c2:'#E8E2CE',cap:'风没来，发型先投降了',owner:3,award:null,
+       note:'这不是发型，这是风的等高线图，建议投稿气象局。'},
+      {emoji:'😑',c1:'#E3DEDA',c2:'#D8D4CC',cap:'他说他在感受风',owner:4,award:'lazy',
+       note:'工位上午睡被抓的第 108 种辩解。态度端正，证据无效。'},
+      {emoji:'🚩',c1:'#D9E1EC',c2:'#EADFC8',cap:'旗子很敬业',owner:5,award:null,
+       note:'全程旗子一个人在表演，人类只负责按快门，分工明确。'}
+    ];
+    const albumData=[
+      {emoji:'🌂',c1:'#D8E2EA',c2:'#EFE6CE',cap:'一把开错方向的伞',d:'08.20 ·「最没用的东西」'},
+      {emoji:'🧦',c1:'#E8DED4',c2:'#DFE5CE',cap:'单只袜子的葬礼',d:'08.19 ·「告别」'},
+      {emoji:'🍜',c1:'#F0E3CD',c2:'#EADCCB',cap:'泡面冒的不是热气是志气',d:'08.18 ·「努力」'},
+      {emoji:'🪑',c1:'#E2DACB',c2:'#D9D2C0',cap:'这把椅子坐了八年',d:'08.17 ·「资历」'},
+      {emoji:'📱',c1:'#D5DBE4',c2:'#E4DEE8',cap:'99% 电量的焦虑',d:'08.16 ·「焦虑」'},
+      {emoji:'🚪',c1:'#DEE5DD',c2:'#EAE4D2',cap:'永远差一格关上的门',d:'08.15 ·「差一点」'}
+    ];
+    const state={submitted:false,votes:{},guessed:{},detailIdx:null};
+    const $=s=>document.querySelector(s);
+    const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ================= 路由与通用 ================= */
+    function showView(id){
+      document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===id));
+      const map={'view-home':'home','view-album':'album','view-me':'me'};
+      document.querySelectorAll('.tabbar button').forEach(b=>
+        b.classList.toggle('on',b.dataset.tab===map[id]));
+    }
+    document.querySelectorAll('.tabbar button').forEach(b=>{
+      b.addEventListener('click',()=>showView('view-'+b.dataset.tab));
+    });
+    let toastTimer;
+    function toast(msg){
+      const t=$('#toast');t.textContent=msg;t.classList.add('on');
+      clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),1800);
+    }
+    function openOv(id){$('#'+id).classList.add('on')}
+    function closeOv(id){$('#'+id).classList.remove('on')}
+    function polaroid(e,big){
+      return `<div class="polaroid" style="${big?'width:210px':''}">
+        <div class="tape"></div>
+        <div class="ph" style="--pc1:${e.c1};--pc2:${e.c2};${big?'height:190px;font-size:80px':''}">${e.emoji}</div>
+        <div class="cap">${e.cap}</div></div>`;
+    }
+
+    /* ================= 首页 / 开局 ================= */
+    function openCreate(){openOv('ov-create')}
+    document.querySelectorAll('#optRow .opt').forEach(o=>{
+      o.addEventListener('click',()=>{
+        document.querySelectorAll('#optRow .opt').forEach(x=>x.classList.remove('sel'));
+        o.classList.add('sel');
+        $('#customInput').style.display=o.dataset.k==='custom'?'block':'none';
+      });
+    });
+    function startRound(){
+      closeOv('ov-create');
+      state.submitted=false;state.votes={};state.guessed={};
+      $('#myPhoto').style.display='none';
+      $('#shutterZone').style.display='block';
+      $('#shutterHint').textContent='按下快门，十秒就好';
+      renderStrip();
+      showView('view-round');
+      toast('卷子已发到群里（演示）');
+    }
+    function goRound(){renderStrip();showView('view-round')}
+
+    /* ================= 局内 ================= */
+    const preDone=[1,2,4]; // 已交卷的同学
+    function renderStrip(){
+      const done=new Set(preDone);
+      if(state.submitted)done.add(0);
+      $('#strip').innerHTML=players.map((p,i)=>
+        `<div class="av ${done.has(i)?'done':''}" title="${p.name}">${p.face}</div>`).join('');
+    }
+    function submitPhoto(){
+      if(state.submitted)return;
+      state.submitted=true;
+      renderStrip();
+      $('#myPhoto').style.display='flex';
+      $('#shutterZone').style.display='none';
+      toast('交卷成功 · 等阿黄揭晓');
+    }
+
+    /* ================= 揭晓墙 ================= */
+    function buildWall(){
+      $('#wallGrid').innerHTML=entries.map((e,i)=>`
+        <div class="wall-card ${state.votes[i]?'voted':''}" style="--tilt:${(i%2?1:-1)*(1+i%3)}deg" onclick="openDetail(${i})">
+          <div class="polaroid"><span class="voted-mark">已批注</span>
+            <div class="ph" style="--pc1:${e.c1};--pc2:${e.c2}">${e.emoji}</div>
+            <div class="cap">${e.cap}</div></div></div>`).join('');
+      updateCnt();
+      showView('view-wall');
+    }
+    function updateCnt(){
+      const n=Object.keys(state.votes).length;
+      $('#voteCnt').textContent=`已审 ${n}/6`;
+    }
+    function openDetail(i){
+      state.detailIdx=i;
+      const e=entries[i];
+      $('#detailPhoto').innerHTML=polaroid(e,true);
+      $('#guessRow').innerHTML=players.map((p,pi)=>{
+        let cls='';
+        if(pi in state.guessed&&state.guessed[i]!==undefined){
+          cls=pi===e.owner?'right':(pi===state.guessed[i]?'wrong':'');
+        }
+        return `<div class="guess ${cls}" onclick="guessPick(${pi})"><span class="face">${p.face}</span>${p.name}</div>`;
+      }).join('');
+      $('#judgeLine').textContent=state.guessed[i]!==undefined
+        ?(state.guessed[i]===e.owner?`眼力可以——就是 ${players[e.owner].name} 拍的。`:'不是这位，再看看别人。')
+        :'点一位同学，看看你懂不懂他。';
+      $('#vBest').classList.toggle('sel',state.votes[i]==='best');
+      $('#vLazy').classList.toggle('sel',state.votes[i]==='lazy');
+      openOv('ov-detail');
+    }
+    function guessPick(pi){
+      const i=state.detailIdx,e=entries[i];
+      if(state.guessed[i]===e.owner)return;
+      if(pi===e.owner){
+        state.guessed[i]=pi;
+        toast(`猜对了，是 ${pi===0?'你自己':players[pi].name}`);
+        openDetail(i);
+      }else{
+        state.guessed[i]=pi;
+        openDetail(i);
+      }
+    }
+    function castVote(tag){
+      const i=state.detailIdx;
+      state.votes[i]=tag;
+      document.querySelectorAll('.wall-card')[i].classList.add('voted');
+      updateCnt();
+      closeOv('ov-detail');
+      toast(tag==='best'?'批注：🏆 最绝':'批注：🍬 最敷衍');
+    }
+    function tryResult(){
+      const n=Object.keys(state.votes).length;
+      if(n<6){toast(`还有 ${6-n} 张答卷没审`);return}
+      forceResult();
+    }
+    function forceResult(){renderResult();showView('view-result')}
+
+    /* ================= 结算 ================= */
+    function typewriter(el,text,done){
+      if(reduceMotion){el.textContent=text;done&&done();return}
+      let i=0;
+      const t=setInterval(()=>{
+        el.textContent=text.slice(0,++i);
+        if(i>=text.length){clearInterval(t);done&&done()}
+      },26);
+    }
+    function replayStamp(sel){
+      const s=$(sel);
+      s.style.animation='none';void s.offsetHeight;s.style.animation='';
+    }
+    function renderResult(){
+      replayStamp('#blockBest .stamp');replayStamp('#blockLazy .stamp');
+      const list=$('#aiList');list.innerHTML='';
+      let chain=Promise.resolve();
+      entries.forEach((e,i)=>{
+        chain=chain.then(()=>new Promise(res=>{
+          const row=document.createElement('div');row.className='ai-item';
+          row.innerHTML=`<span class="who">${players[e.owner].name} 答</span><span class="note"></span>`;
+          list.appendChild(row);
+          typewriter(row.querySelector('.note'),' '+e.note,res);
+        }));
+      });
+    }
+    function usePower(){
+      toast('出题权生效——明天的题由你出');
+      showView('view-home');
+    }
+
+    /* ================= 年鉴 ================= */
+    $('#albumGrid').innerHTML=albumData.map((a,i)=>`
+      <div class="polaroid" style="transform:rotate(${i%2?1.4:-1.4}deg)">
+        <div class="ph" style="--pc1:${a.c1};--pc2:${a.c2}">${a.emoji}</div>
+        <div class="cap">${a.cap}</div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:var(--pencil);text-align:center;margin-top:5px">${a.d}</div>
+      </div>`).join('');
+
+    /* ================= 倒计时 ================= */
+    let secs=5*3600+12*60+44;
+    setInterval(()=>{
+      secs=Math.max(0,secs-1);
+      const h=String(Math.floor(secs/3600)).padStart(2,'0'),
+            m=String(Math.floor(secs%3600/60)).padStart(2,'0'),
+            s=String(secs%60).padStart(2,'0');
+      const t=`${h}:${m}:${s}`;
+      $('#timer').textContent=t;$('#miniTimer').textContent=t;
+    },1000);
+
+    renderStrip();
+
+  </script>
+</body>
+</html>

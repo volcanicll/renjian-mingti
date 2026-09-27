@@ -1,0 +1,41 @@
+/* ============================================================
+ * 「人间命题」设计令牌 —— 试卷讲义视觉体系
+ * 来源：design-demo/人间命题-交互demo.html
+ * 说明：uni.scss 会被自动注入每个组件的 scss 编译，只放变量与 mixin
+ * ============================================================ */
+
+/* ---- 颜色 ---- */
+$paper:      #FAF7EF;   // 讲义白
+$paper-dim:  #F1ECDF;
+$grid:       rgba(122, 168, 160, .22); // 方格青
+$ink:        #23324D;   // 钢笔蓝黑
+$ink-soft:   #4A5872;
+$red:        #D6482F;   // 批改朱
+$red-deep:   #B93A24;
+$pencil:     #8B8B83;   // 铅笔灰
+$hi:         #F5D94E;   // 荧光黄
+$board:      #22382F;   // 黑板绿
+$chalk:      #EDE9DC;
+$gold:       #C9A93A;   // 最敷衍奖金
+$ok-green:   #3E7C3A;
+$ok-bg:      #DFF0DF;
+
+/* ---- 字体 ---- */
+$kai:  "Kaiti SC", "STKaiti", "KaiTi", "楷体", serif;
+$song: "Songti SC", "STSong", "SimSun", serif;
+$hei:  -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+$mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+/* ---- 尺寸（设计稿 390px 宽，1px ≈ 1.92rpx）---- */
+$page-pad: 35rpx;
+
+/* ---- mixin ---- */
+@mixin kai-title($size, $ls: .2em) {
+  font-family: $kai;
+  font-size: $size;
+  letter-spacing: $ls;
+}
+
+@mixin card-shadow($c: rgba(35, 50, 77, .14), $x: 6rpx, $y: 6rpx) {
+  box-shadow: $x $y 0 $c;
+}

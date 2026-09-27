@@ -1,0 +1,319 @@
+/* ============================================================
+ * 「人间命题」全局样式 —— 试卷讲义视觉体系
+ * 在 App.vue 中 @import，编译进 app.wxss 全局生效
+ * px→rpx 换算：设计稿 390px 宽，× 1.92
+ * ============================================================ */
+
+/* ---- 盒模型统一 ----
+ * 小程序 WXSS 默认 content-box：凡 width:100% / calc() 再叠加 padding+border 都会撑破容器
+ * （拍立得卡片、猜人头像、弹层等都会被挤出屏幕右侧），这里全局改为 border-box。
+ */
+view, uni-view, text, uni-text, image, uni-image,
+scroll-view, uni-scroll-view, input, uni-input, textarea, uni-textarea {
+  box-sizing: border-box;
+}
+
+page {
+  /* 背景纸 + 方格 */
+  background-color: $paper;
+  background-image:
+    linear-gradient($grid 1px, transparent 1px),
+    linear-gradient(90deg, $grid 1px, transparent 1px);
+  background-size: 50rpx 50rpx;
+  color: $ink;
+  font-family: $hei;
+  font-size: 28rpx;
+  height: 100%;
+}
+
+/* ---- 字体工具类 ---- */
+.kai  { font-family: $kai; }
+.song { font-family: $song; }
+.mono { font-family: $mono; }
+.red  { color: $red; }
+.soft { color: $ink-soft; }
+.pencil { color: $pencil; }
+
+/* ---- 自定义导航栏 topbar ---- */
+.topbar {
+  padding: calc(var(--status-bar-height) + 20rpx) 35rpx 20rpx;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 4rpx solid $ink;
+}
+.brand {
+  font-family: $kai;
+  font-weight: 700;
+  font-size: 40rpx;
+  letter-spacing: .14em;
+  /* 插槽内容即导航栏 flex 子项：可收缩，但永不换行 */
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  .em { font-style: normal; color: $red; }
+}
+/* ---- 导航栏返回键（页面上用 <text class="back-btn"> 走插槽渲染）---- */
+.back-btn {
+  flex: 0 0 auto;      /* 返回键不参与收缩，被挤压的只能是右侧 meta */
+  letter-spacing: .05em;
+  transition: opacity .1s;
+  &:active { opacity: .45; }
+}
+/* ---- 导航栏 meta 小字（独立类选择器：内容经 exam-topbar 组件插槽渲染）----
+ * 必须可收缩 + 省略号：否则昵称较长时文字会越过导航栏右内边距，
+ * 直接钻到微信胶囊下面（表现为「头部被胶囊遮住」）。
+ */
+.meta {
+  font-family: $mono;
+  font-size: 21rpx;
+  color: $pencil;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* ---- 密封线 ---- */
+.seal-line {
+  display: flex;
+  align-items: center;
+  gap: 15rpx;
+  margin: 31rpx 0;
+  color: $pencil;
+  font-family: $song;
+  font-size: 21rpx;
+  letter-spacing: .5em;
+  white-space: nowrap;
+  overflow: hidden;
+  &::before, &::after {
+    content: "";
+    flex: 1;
+    border-top: 3rpx dashed rgba(139, 139, 131, .55);
+  }
+}
+
+/* ---- 装订孔卡片 ---- */
+.sheet-card {
+  background: #fff;
+  border: 3rpx solid $ink;
+  border-radius: 12rpx;
+  position: relative;
+  box-shadow: 6rpx 6rpx 0 rgba(35, 50, 77, .14);
+}
+.holes {
+  &::before, &::after {
+    content: "";
+    position: absolute;
+    left: 18rpx;
+    width: 19rpx;
+    height: 19rpx;
+    border-radius: 50%;
+    /* 孔：纸色内凹 + 内阴影，读起来才像打孔而不是脏点 */
+    background: $paper;
+    border: 3rpx solid rgba(139, 139, 131, .5);
+    box-shadow: inset 1rpx 2rpx 3rpx rgba(35, 50, 77, .28);
+  }
+  /* 固定偏移：不随卡片高度浮动，始终贴在装订线上 */
+  &::before { top: 32rpx; }
+  &::after  { bottom: 32rpx; }
+}
+
+/* ---- 按钮 ---- */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 25rpx 31rpx;
+  border-radius: 19rpx;
+  border: 3rpx solid $ink;
+  font-family: $hei;
+  font-weight: 600;
+  font-size: 29rpx;
+  letter-spacing: .2em;
+  text-indent: .2em;
+  text-align: center;
+  background: #fff;
+  color: $ink;
+  line-height: 1.4;
+  transition: transform .08s ease, box-shadow .08s ease;
+  &::after { border: none; }
+  &:active { transform: translateY(4rpx); }
+}
+.btn-primary {
+  background: $ink;
+  color: $paper;
+  box-shadow: 6rpx 6rpx 0 rgba(214, 72, 47, .85);
+  &:active { box-shadow: 2rpx 2rpx 0 rgba(214, 72, 47, .85); }
+}
+.btn-red {
+  background: $red;
+  border-color: $red-deep;
+  color: #fff;
+  box-shadow: 6rpx 6rpx 0 rgba(35, 50, 77, .3);
+}
+.btn-disabled { opacity: .4; pointer-events: none; }
+
+/* ---- 荧光笔高亮 ---- */
+.tag-hl {
+  background: linear-gradient(transparent 55%, $hi 55%);
+  font-weight: 700;
+}
+
+/* ---- 区块标题 ---- */
+.sec-label {
+  display: flex;
+  align-items: baseline;
+  gap: 15rpx;
+  margin: 38rpx 8rpx 19rpx;
+  font-family: $kai;
+  font-size: 27rpx;
+  letter-spacing: .25em;
+  color: $ink;
+  .sub {
+    font-family: $mono;
+    font-size: 19rpx;
+    color: $pencil;
+    letter-spacing: .05em;
+  }
+}
+
+/* ---- 拍立得 ---- */
+.polaroid {
+  background: #fff;
+  padding: 19rpx 19rpx 23rpx;
+  border: 2rpx solid rgba(35, 50, 77, .25);
+  box-shadow: 8rpx 10rpx 23rpx rgba(35, 50, 77, .22);
+  width: 330rpx;
+  position: relative;
+  .ph {
+    width: 100%;
+    height: 288rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 123rpx;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--pc1, #CFE3DD), var(--pc2, #EFE3C2));
+    image { width: 100%; height: 100%; }
+  }
+  .cap {
+    font-family: $kai;
+    font-size: 25rpx;
+    text-align: center;
+    margin-top: 17rpx;
+    color: $ink;
+    letter-spacing: .05em;
+    line-height: 1.5;
+  }
+  .tape {
+    position: absolute;
+    top: -19rpx;
+    left: 50%;
+    transform: translateX(-50%) rotate(-3deg);
+    width: 142rpx;
+    height: 38rpx;
+    background: rgba(245, 217, 78, .75);
+    box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, .12);
+  }
+}
+
+/* ---- 红章 ---- */
+.stamp {
+  position: absolute;
+  top: 15rpx;
+  right: 19rpx;
+  width: 142rpx;
+  height: 142rpx;
+  border-radius: 50%;
+  border: 6rpx double $red;
+  color: $red;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: $kai;
+  font-weight: 700;
+  font-size: 40rpx;
+  letter-spacing: .1em;
+  text-indent: .1em;
+  transform: rotate(-14deg);
+  opacity: .88;
+  background: rgba(250, 247, 239, .35);
+  animation: stampIn .45s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.stamp-small {
+  width: 115rpx;
+  height: 115rpx;
+  font-size: 31rpx;
+  top: auto;
+  bottom: 19rpx;
+}
+@keyframes stampIn {
+  0%   { transform: scale(2.4) rotate(-40deg); opacity: 0; }
+  70%  { transform: scale(.92) rotate(-11deg); opacity: .95; }
+  100% { transform: scale(1) rotate(-14deg); opacity: .88; }
+}
+
+/* ---- 试卷题头 ---- */
+.exam-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4rpx 8rpx 15rpx;
+  .no {
+    font-family: $mono;
+    font-size: 21rpx;
+    color: $pencil;
+    letter-spacing: .08em;
+  }
+}
+.exam-badge {
+  font-family: $kai;
+  font-size: 21rpx;
+  color: $red;
+  border: 2rpx solid $red;
+  padding: 4rpx 13rpx;
+  border-radius: 6rpx;
+  letter-spacing: .2em;
+  text-indent: .2em;
+}
+.prompt-title {
+  font-family: $kai;
+  font-weight: 700;
+  font-size: 52rpx;
+  line-height: 1.45;
+  padding: 19rpx 15rpx 27rpx;
+  letter-spacing: .06em;
+}
+.prompt-note {
+  font-size: 23rpx;
+  color: $ink-soft;
+  line-height: 1.8;
+  padding: 0 15rpx 27rpx;
+}
+
+/* ---- 列表行 ---- */
+.row-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 25rpx 12rpx;
+  border-bottom: 2rpx dashed rgba(139, 139, 131, .4);
+  font-size: 27rpx;
+  &:last-child { border-bottom: none; }
+  .arr { color: $pencil; }
+}
+
+/* ---- 布局工具 ---- */
+.page-body {
+  padding: 8rpx $page-pad 46rpx;
+}
+.flex-row { display: flex; flex-direction: row; align-items: center; }
+.flex-1 { flex: 1; min-width: 0; }
+
+/* ---- 动画降级 ---- */
+@media (prefers-reduced-motion: reduce) {
+  view, image, text, button { animation: none !important; transition: none !important; }
+}

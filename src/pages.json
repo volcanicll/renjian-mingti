@@ -1,0 +1,73 @@
+{
+  "easycom": {
+    "autoscan": false,
+    "custom": {
+      "^exam-(.*)": "@/components/exam-$1.vue",
+      "^polaroid-photo$": "@/components/polaroid-photo.vue",
+      "^stamp-badge$": "@/components/stamp-badge.vue",
+      "^countdown-timer$": "@/components/countdown-timer.vue",
+      "^ai-comments$": "@/components/ai-comments.vue",
+      "^avatar-strip$": "@/components/avatar-strip.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "人间命题",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
+    },
+    {
+      "path": "pages/round/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "局内"
+      }
+    },
+    {
+      "path": "pages/wall/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "揭晓墙"
+      }
+    },
+    {
+      "path": "pages/result/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "阅卷结果"
+      }
+    },
+    {
+      "path": "pages/album/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "年鉴"
+      }
+    },
+    {
+      "path": "pages/me/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/rules/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "考场须知"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "人间命题",
+    "navigationBarBackgroundColor": "#FAF7EF",
+    "backgroundColor": "#FAF7EF"
+  }
+}

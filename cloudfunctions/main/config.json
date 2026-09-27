@@ -1,0 +1,11 @@
+{
+  "timeout": 60,
+  "envVariables": {},
+  "triggers": [
+    {
+      "name": "sweepTrigger",
+      "type": "timer",
+      "config": "0 */5 * * * * *"
+    }
+  ]
+}
