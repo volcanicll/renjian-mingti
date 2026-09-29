@@ -12,6 +12,31 @@
         <button class="btn err-retry" @tap="refresh">再 试 一 次</button>
       </view>
 
+      <!-- 口袋：存下今天想玩的题 -->
+      <view class="pocket-strip" v-if="savedPrompts.length" @tap="pocketOpen = !pocketOpen">
+        <text class="pk-icon">🖐</text>
+        <view class="pk-mid">
+          <view class="pk-label">口 袋 里 有 {{ savedPrompts.length }} 道 题</view>
+          <view v-if="!pocketOpen" class="pk-sub">点开看，想玩哪道点哪道</view>
+        </view>
+        <text class="pk-arrow">{{ pocketOpen ? '收起 ▴' : '展开 ▾' }}</text>
+      </view>
+      <template v-if="pocketOpen">
+        <view
+          v-for="q in savedPrompts"
+          :key="q.promptId"
+          class="sheet-card pocket-item"
+          @tap.stop="playPocket(q)"
+        >
+          <text class="pk-q-icon">🎟️</text>
+          <view class="pk-q-mid">
+            <view class="pk-q-text">{{ q.text }}</view>
+            <view class="pk-q-sub">NO.{{ q.no }} · 点了就开局</view>
+          </view>
+          <text class="pk-q-x" @tap.stop="removePocket(q)">✕</text>
+        </view>
+      </template>
+
       <!-- 连击：连续作答天数 -->
       <view class="combo-strip" v-if="combo > 0">
         <text class="cs-num">{{ combo }}</text>
@@ -29,11 +54,11 @@
           <text class="exam-badge">今日必考</text>
         </view>
         <view class="prompt-title">{{ today.text }}</view>
-        <view class="prompt-note">本大题共 1 小题，满分 0 分。要求：现场真实拍摄；跑题不扣分，敷衍另有专门奖项。</view>
+        <view class="prompt-note">用一张现场拍的照片回答，答对没有奖，答得离谱有。</view>
         <view class="seal-line">密 封 线 内 请 不 要 答 题</view>
         <view class="home-actions">
           <button class="btn btn-primary act" @tap="openCreate">开始一局</button>
-          <button class="btn act" @tap="toast('已把今天的题抄进口袋')">先存着</button>
+          <button class="btn act" @tap="saveToday">先存着</button>
         </view>
       </view>
 
@@ -59,8 +84,9 @@
           <text class="go">{{ r.status === 'shooting' ? '进入 ›' : '揭晓 ›' }}</text>
         </view>
       </template>
+      <view v-else-if="!loaded" class="empty-line">正在翻你的考卷…</view>
       <view v-else class="empty-line" @tap="openCreate">
-        还没有局。点这里开一局，把题扔进群里。 <text class="empty-go">›</text>
+        还没有局。点这里开一局，扔一个题进群里，比如「拍下你此刻的表情」。<text class="empty-go">›</text>
       </view>
 
       <!-- 昨日战报 -->
@@ -71,8 +97,11 @@
         <view class="sheet-card report-card">
           <view class="report-prompt">命题：「{{ report.promptText }}」</view>
           <view class="report-lines">
-            <view>🏆 最绝奖 · {{ report.best.ownerName }}的<text class="tag-hl">「{{ report.best.caption }}」</text></view>
-            <view>🍬 最敷衍奖 · {{ report.lazy.ownerName }}的「{{ report.lazy.caption }}」</view>
+            <!-- best / lazy 各自可能为空：某一奖项无人投票时服务端会返回 null，
+                 不能直接取 .ownerName，否则首页整页渲染报错 -->
+            <view v-if="report.best">🏆 最绝奖 · {{ report.best.ownerName }}的<text class="tag-hl">「{{ report.best.caption }}」</text></view>
+            <view v-if="report.lazy">🍬 最敷衍奖 · {{ report.lazy.ownerName }}的「{{ report.lazy.caption }}」</view>
+            <view v-if="!report.best && !report.lazy">上一局没人投票，奖项空缺。</view>
           </view>
         </view>
       </template>
@@ -145,6 +174,7 @@
       </view>
     </exam-sheet>
 
+    <exam-tabbar active="home" />
     <exam-toast />
     <exam-privacy />
   </view>
@@ -153,17 +183,21 @@
 <script>
 import api from '@/api'
 import { toast } from '@/composables/useToast'
-import { store } from '@/store'
+import { store, bootstrap } from '@/store'
 import { fmtLeft } from '@/utils/format'
 import { goNav } from '@/utils/nav'
 
 export default {
   data() {
+    // tab 切回首页时页面会重新挂载，data 会回到初始值 —— 先用 store 里的缓存填充，
+    // 保证第一帧就是上次的内容，而不是「还没有局」这种假空状态。
+    const boot = store.boot
     return {
       store,
-      today: { promptId: 0, no: 0, text: '……' },
-      myRounds: [],
-      report: null,
+      today: (boot && boot.today) || { promptId: 0, no: 0, text: '……' },
+      myRounds: (boot && boot.myRounds) || [],
+      report: (boot && boot.yesterdayReport) || null,
+      loaded: !!boot,
       loadErr: false,
       createShow: false,
       source: 'official',
@@ -172,15 +206,17 @@ export default {
       aiText: '',
       aiLoading: false,
       creating: false,
-      nextTeaser: null,
+      nextTeaser: (boot && boot.nextTeaser) || null,
+      savedPrompts: (boot && boot.savedPrompts) || [],
+      pocketOpen: false,
       opts: [
         { key: 'official', label: '官方今日题', small: '今日命题' },
         { key: 'ai', label: 'AI 代出', small: '帮你想个损的' },
         { key: 'custom', label: '自己出', small: '当一回老师' }
       ],
       modes: [
-        { key: 'flash', label: '⚡ 闪电局', small: '2 小时 · 快' },
-        { key: 'overnight', label: '🌙 长夜局', small: '24 小时 · 慢' }
+        { key: 'flash', label: '⚡ 闪电局', small: '2 小时 · 一群人现挂' },
+        { key: 'overnight', label: '🌙 长夜局', small: '24 小时 · 白天才出片' }
       ]
     }
   },
@@ -205,18 +241,43 @@ export default {
     fmtLeft,
     async refresh() {
       try {
-        const d = await api.getBootstrap()
+        // force=true：回到首页要能看到别人新建的局。
+        // 但页面第一帧已经用 store.boot 渲染过了，所以这次请求不会造成白屏。
+        const d = await bootstrap(true)
         this.today = d.today
         this.myRounds = d.myRounds || []
+        this.savedPrompts = d.savedPrompts || []
         this.report = d.yesterdayReport
         this.nextTeaser = d.nextTeaser || null
-        if (d.profile) Object.assign(store.profile, d.profile)
-        store.booted = true
+        this.loaded = true
         this.loadErr = false
       } catch (e) {
-        // 首次加载失败给重试入口；已有数据时静默，下次 onShow 重试
-        if (!store.booted) this.loadErr = true
+        // 首次加载失败给重试入口；已有缓存时静默，下次 onShow 重试
+        if (!this.loaded) this.loadErr = true
       }
+    },
+    async saveToday() {
+      try {
+        const list = await api.savePrompt({
+          promptId: this.today.promptId,
+          no: this.today.no,
+          text: this.today.text
+        })
+        this.savedPrompts = list
+        toast('已抄进口袋，想玩的时候再开')
+      } catch (e) {
+        toast(e.message || '没存上，再试一次')
+      }
+    },
+    async removePocket(q) {
+      this.savedPrompts = await api.unsavePrompt(q.promptId)
+      if (!this.savedPrompts.length) this.pocketOpen = false
+    },
+    playPocket(q) {
+      this.source = 'custom'
+      this.customText = q.text
+      this.mode = 'flash'
+      this.createShow = true
     },
     goRound(r) {
       const url =
@@ -292,9 +353,70 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.pb-extra { padding-bottom: 180rpx; }
+.pb-extra { padding-bottom: 140rpx; }  /* tabbar 约 110rpx，多留一点呼吸感 */
 
 .today-card { padding: 31rpx 31rpx 27rpx 61rpx; }
+
+/* 口袋 */
+.pocket-strip {
+  display: flex;
+  align-items: center;
+  gap: 19rpx;
+  background: $hi;
+  border: 3rpx solid $ink;
+  border-radius: 15rpx;
+  padding: 19rpx 27rpx;
+  margin-bottom: 19rpx;
+  box-shadow: 6rpx 6rpx 0 rgba(214, 72, 47, .18);
+}
+.pk-icon { font-size: 38rpx; }
+.pk-mid { flex: 1; min-width: 0; }
+.pk-label {
+  font-family: $kai;
+  font-size: 23rpx;
+  letter-spacing: .2em;
+  font-weight: 700;
+}
+.pk-sub {
+  font-size: 20rpx;
+  color: rgba(35,50,77,.66);
+  margin-top: 6rpx;
+  line-height: 1.5;
+}
+.pk-arrow {
+  font-family: $mono;
+  font-size: 20rpx;
+  color: rgba(35,50,77,.55);
+}
+.pocket-item {
+  display: flex;
+  align-items: center;
+  gap: 23rpx;
+  padding: 21rpx 23rpx 21rpx 34rpx;
+  margin-bottom: 19rpx;
+}
+.pk-q-icon { font-size: 38rpx; }
+.pk-q-mid { flex: 1; min-width: 0; }
+.pk-q-text {
+  font-weight: 600;
+  font-size: 26rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pk-q-sub {
+  font-size: 20rpx;
+  color: $pencil;
+  margin-top: 6rpx;
+  font-family: $mono;
+}
+.pk-q-x {
+  font-family: $mono;
+  font-size: 27rpx;
+  color: $pencil;
+  padding: 8rpx 12rpx;
+  &:active { opacity: .5; }
+}
 
 /* 连击条 */
 .combo-strip {

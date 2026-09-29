@@ -8,7 +8,12 @@
     <view class="page-body ab-body">
       <view class="intro">各局最绝奖作品自动入册。人不多的时候，这里安静地替人类保管脑洞。</view>
 
-      <view v-if="items.length" class="masonry">
+      <!-- 没有任何缓存时先给占位：不能先显示「年鉴还空着」，那是假空状态 -->
+      <view v-if="!loaded && !failed" class="alb-loading">年鉴翻页中…</view>
+
+      <view v-else-if="failed" class="empty-hint">年鉴暂时打不开，稍后再试。</view>
+
+      <view v-else-if="items.length" class="masonry">
         <view
           v-for="(a, i) in items"
           :key="a.entryId || i"
@@ -36,12 +41,13 @@
 </template>
 
 <script>
-import api from '@/api'
+import { store, loadAlbum } from '@/store'
 import { toast } from '@/composables/useToast'
 
 export default {
   data() {
-    return { items: [] }
+    // 用缓存做初始值：tab 切回来时第一帧就有内容，不再闪空白
+    return { items: store.album || [], loaded: !!store.album, failed: false }
   },
   onShow() {
     this.load()
@@ -55,9 +61,15 @@ export default {
     },
     async load() {
       try {
-        this.items = (await api.getAlbum()) || []
+        // 已有缓存就先渲染缓存，后台再拉最新（force）
+        this.items = await loadAlbum(!!this.loaded)
+        this.loaded = true
+        this.failed = false
       } catch (e) {
-        toast(e.message || '年鉴打不开了')
+        // 有缓存时静默失败，别打断已经渲染出来的内容；
+        // 没缓存时要落到「打不开」而不是永远停在「翻页中」
+        this.failed = !this.loaded
+        if (!this.loaded) toast(e.message || '年鉴打不开了')
       }
     }
   }
@@ -100,5 +112,15 @@ export default {
   color: $pencil;
   padding: 123rpx 31rpx;
   line-height: 2;
+}
+
+/* 首次加载占位：宁可显示「翻页中」，也不要先闪一屏「年鉴还空着」 */
+.alb-loading {
+  text-align: center;
+  font-family: $kai;
+  color: $pencil;
+  font-size: 23rpx;
+  letter-spacing: .2em;
+  padding: 123rpx 31rpx;
 }
 </style>

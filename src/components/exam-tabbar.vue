@@ -11,7 +11,7 @@
 </template>
 
 <script>
-import { goRelaunch } from '@/utils/nav'
+import { goTab } from '@/utils/nav'
 
 export default {
   name: 'exam-tabbar',
@@ -30,7 +30,7 @@ export default {
   methods: {
     go(url, key) {
       if (key === this.active) return
-      goRelaunch(url)
+      goTab(url)
     }
   }
 }
