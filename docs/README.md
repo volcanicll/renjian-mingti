@@ -16,5 +16,7 @@
 
 - API 字段和 action 变更时，必须同步更新 `src/api/index.js` 顶部注释、[DATA_CONTRACT.md](DATA_CONTRACT.md) 和对应 mock/cloud 实现。
 - 玩法规则变更时，同步更新策划/玩法文档、README 的“核心特性”，并补充 `scripts/smoke-mock.js` 断言。
+- 云函数行为、action、集合字段变更时，必须补充或更新 `scripts/cloud-smoke.js` 断言（`npm run smoke:cloud`）。
+  只改 `smoke-mock.js` 覆盖不到云函数：漏 `.get()`、`_id` 未回写这类缺陷读代码看不出来，只有真跑一次才会暴露。
 - 部署步骤或环境变量变更时，同步更新 [cloudfunctions/README.md](../cloudfunctions/README.md)。
 - 文档中的命令和路径应链接到仓库内真实文件，避免只写概念不写落点。

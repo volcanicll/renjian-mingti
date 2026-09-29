@@ -5,13 +5,13 @@
 
 「人间命题」是一款基于微信群的异步摄影派对小游戏。项目使用 **uni-app + Vue 3** 构建微信小程序，支持零配置演示模式，以及微信云开发、云数据库、云存储和 OpenAI 兼容大模型组成的真实多人模式。
 
-策划案见 [参赛策划案](docs/人间命题-参赛策划案.md)，玩法升级见 [玩法进化方案](docs/玩法进化方案.md)，交互设计稿见 [交互 Demo](design-demo/人间命题-交互demo.html)。
+策划案见 [参赛策划案](docs/人间命题-参赛策划案.md)，玩法升级见 [玩法进化方案](docs/玩法进化方案.md)，交互设计稿见 [交互 Demo](design-demo/人间命题-交互demo.html)，产品宣传落地页见 [landing/index.html](landing/index.html)（单文件零依赖，可直接静态托管）。
 
 ## 项目状态
 
-- 演示模式已打通完整玩法闭环，`npm run smoke` 共 39 项断言。
+- 演示模式已打通完整玩法闭环，`npm run smoke` 共 62 项断言。
 - 微信小程序构建通过，产物输出到 `dist/build/mp-weixin`。
-- 云函数已实现身份校验、匿名揭晓、幂等结算、定时清扫、AI 降级和订阅消息。
+- 云函数已实现身份校验、入局与局内成员鉴权、匿名揭晓、幂等结算、定时清扫、AI 降级、举报落库和订阅消息。
 - 默认使用演示模式，不会上传数据，也不需要 AppID 或云开发环境。
 
 ## 文档导航
@@ -74,9 +74,10 @@ npm run dev:h5
 1. 在微信公众平台注册小程序，并在本地将 AppID 填入 `src/manifest.json` 的 `mp-weixin.appid`。真实 AppID 仅用于本地构建，不要提交；仓库内保留空值或 `touristappid`。
 2. 在微信开发者工具中开通云开发，把环境 ID 填入 `src/config/index.js` 的 `CLOUD_ENV`。
 3. 将 `src/config/index.js` 的 `USE_CLOUD` 改为 `true`。
-4. 创建 `users / rounds / entries / votes / guesses / prompts / counters` 集合。
+4. 创建 `users / rounds / entries / votes / guesses / prompts / counters / reports` 集合。
 5. 上传部署 `cloudfunctions/main` 与 `cloudfunctions/timer`。
 6. 初始化题库，并按需配置 AI、订阅消息和内容安全相关环境变量。
+7. 分享卡片给好友后，对方点开即自动入局（`round.join`），无需额外操作。
 
 完整步骤、权限建议和验证路径见 [云开发部署手册](cloudfunctions/README.md)。
 
@@ -88,7 +89,10 @@ npm run dev:h5
 | `npm run build:mp-weixin` | 构建微信小程序，产物位于 `dist/build/mp-weixin` |
 | `npm run dev:h5` | 启动 H5 开发服务器 |
 | `npm run build:h5` | 构建 H5 产物 |
-| `npm run smoke` | 运行演示模式完整玩法冒烟测试 |
+| `npm run smoke` | 运行演示模式（mock）完整玩法冒烟测试，62 项断言 |
+| `npm run smoke:cloud` | 运行云模式（生产）冒烟测试，114 项断言，覆盖入局、鉴权、匿名、结算、清扫 |
+| `npm run smoke:all` | 两套冒烟测试一起跑，提交前推荐 |
+| `npm run verify` | `smoke:all` + `build:mp-weixin`，一条命令跑完发布前检查 |
 | `npm run dev:custom` | 使用交互参数选择其他 uni-app 平台 |
 | `npm run build:custom` | 使用交互参数构建其他 uni-app 平台 |
 

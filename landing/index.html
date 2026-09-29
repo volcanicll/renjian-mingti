@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人间命题 · AI 出题,全人类作答 —— 微信群摄影派对游戏</title>
+<meta name="description" content="「人间命题」是一款基于微信群的摄影派对小游戏:每天一道荒诞命题,三五个好友各拍一张,AI 当裁判兼毒舌点评,赢家拿走明天的出题权。一个微信群,就是一局。">
+<meta property="og:title" content="人间命题 · AI 出题,全人类作答">
+<meta property="og:description" content="每天一道荒诞命题,好友各拍一张,匿名上墙猜人投票,AI 毒舌点评。一个微信群就是一局。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+/* ============================================================
+   「人间命题」宣传落地页 —— 试卷讲义视觉体系
+   与小程序 src/styles/exam.scss 同源的设计令牌
+   ============================================================ */
+:root{
+  --paper:#FAF7EF;        /* 讲义白 */
+  --paper-dim:#F1ECDF;
+  --grid:rgba(122,168,160,.22);   /* 方格青 */
+  --ink:#23324D;          /* 钢笔蓝黑 */
+  --ink-soft:#4A5872;
+  --red:#D6482F;          /* 批改朱 */
+  --red-deep:#B93A24;
+  --pencil:#8B8B83;       /* 铅笔灰 */
+  --hi:#F5D94E;           /* 荧光黄 */
+  --board:#22382F;        /* 黑板绿(桌面) */
+  --chalk:#EDE9DC;
+  --kai:"Kaiti SC","STKaiti","KaiTi","楷体",serif;
+  --song:"Songti SC","STSong","SimSun",serif;
+  --hei:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(ellipse at 20% 8%,rgba(255,255,255,.05),transparent 50%),
+    radial-gradient(ellipse at 82% 92%,rgba(255,255,255,.04),transparent 50%),
+    var(--board);
+  font-family:var(--hei);
+  color:var(--ink);
+  font-size:15.5px;
+  letter-spacing:.01em;
+  padding:0 20px 56px;
+}
+::selection{background:var(--hi)}
+:focus-visible{outline:2px dashed var(--red);outline-offset:3px}
+img,svg{display:block}
+
+/* ---- 黑板粉笔字(仅桌面) ---- */
+.chalk-row{text-align:center;padding:44px 0 30px;color:var(--chalk)}
+.chalk-main{font-family:var(--kai);font-size:21px;letter-spacing:.32em;text-indent:.32em;opacity:.88}
+.chalk-sub{font-family:var(--kai);font-size:12.5px;letter-spacing:.24em;text-indent:.24em;opacity:.5;margin-top:10px}
+.chalk-end{padding:30px 0 0}
+.chalk-end .chalk-sub{margin-top:0}
+.chalk-main::after{
+  content:"";display:block;width:180px;height:2px;margin:16px auto 0;
+  background:repeating-linear-gradient(90deg,rgba(237,233,220,.4) 0 14px,transparent 14px 22px);
+}
+
+/* ---- 试卷纸 ---- */
+.paper{
+  position:relative;max-width:960px;margin:0 auto;background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:26px 26px;
+  border-radius:4px;
+  box-shadow:0 30px 70px rgba(0,0,0,.5),0 4px 14px rgba(0,0,0,.3);
+  padding:40px 56px 44px 96px;
+  overflow:hidden;
+}
+/* 左侧装订线 + 装订孔 */
+.binding{position:absolute;left:46px;top:0;bottom:0;width:2px;border-left:2px dashed rgba(139,139,131,.42)}
+.binding i{
+  position:absolute;left:-7px;width:12px;height:12px;border-radius:50%;
+  background:var(--paper);border:2px solid rgba(139,139,131,.5);
+  box-shadow:inset 1px 2px 3px rgba(35,50,77,.28);
+}
+.binding i:nth-child(1){top:9%}
+.binding i:nth-child(2){top:36%}
+.binding i:nth-child(3){top:63%}
+.binding i:nth-child(4){top:90%}
+
+/* ---- 通用元件(与产品同款) ---- */
+.mono{font-family:var(--mono)}
+.seal-line{
+  display:flex;align-items:center;gap:12px;margin:34px 0;color:var(--pencil);
+  font-family:var(--song);font-size:12px;letter-spacing:.5em;text-indent:.1em;white-space:nowrap;overflow:hidden;
+}
+.seal-line::before,.seal-line::after{content:"";flex:1;border-top:2px dashed rgba(139,139,131,.5)}
+.sheet-card{
+  background:#fff;border:2px solid var(--ink);border-radius:10px;position:relative;
+  box-shadow:4px 4px 0 rgba(35,50,77,.14);
+}
+.tag-hl{
+  background-image:linear-gradient(transparent 55%,var(--hi) 55%);
+  background-repeat:no-repeat;background-size:0% 100%;
+  transition:background-size .8s cubic-bezier(.2,.7,.2,1) .25s;
+  font-weight:700;padding:0 .08em;
+}
+.on .tag-hl,.no-js .tag-hl{background-size:100% 100%}
+
+/* ---- 按钮 ---- */
+.btn{
+  display:inline-block;padding:14px 24px;border-radius:10px;border:2px solid var(--ink);
+  font-family:var(--hei);font-weight:600;font-size:15px;letter-spacing:.14em;text-indent:.14em;
+  cursor:pointer;text-align:center;transition:transform .08s ease,box-shadow .08s ease;
+  background:#fff;color:var(--ink);text-decoration:none;line-height:1.4;
+}
+.btn:active{transform:translateY(2px)}
+.btn-primary{background:var(--ink);color:var(--paper);box-shadow:4px 4px 0 rgba(214,72,47,.85)}
+.btn-primary:active{box-shadow:1px 1px 0 rgba(214,72,47,.85)}
+
+/* ---- 红章 ---- */
+.stamp{
+  position:absolute;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;border:3px double var(--red);color:var(--red);
+  font-family:var(--kai);font-weight:700;letter-spacing:.08em;text-indent:.08em;
+  transform:rotate(-14deg);opacity:.88;background:rgba(250,247,239,.35);
+  mix-blend-mode:multiply;pointer-events:none;
+}
+.js .rv .stamp{opacity:0}
+.js .rv.on .stamp{animation:stampIn .5s cubic-bezier(.2,1.6,.4,1) .35s both}
+@keyframes stampIn{
+  0%{transform:scale(2.2) rotate(-38deg);opacity:0}
+  70%{transform:scale(.94) rotate(-12deg);opacity:.95}
+  100%{transform:scale(1) rotate(-14deg);opacity:.88}
+}
+.stamp-sm{width:78px;height:78px;font-size:19px}
+.stamp-lg{width:116px;height:116px;font-size:40px;position:relative;margin:0 auto}
+
+/* ---- 官方大印(SVG 环形文字) ---- */
+.official-seal{
+  position:absolute;width:118px;color:var(--red);opacity:.82;
+  transform:rotate(-11deg);mix-blend-mode:multiply;pointer-events:none;
+}
+
+/* ---- 拍立得(与产品同款) ---- */
+.polaroid{
+  background:#fff;padding:11px 11px 13px;border:1px solid rgba(35,50,77,.25);
+  box-shadow:6px 8px 16px rgba(35,50,77,.22);width:190px;position:relative;flex:none;
+  transition:transform .25s ease;
+}
+.polaroid:hover{transform:rotate(0deg) translateY(-8px) !important;z-index:9}
+.polaroid .ph{
+  width:100%;aspect-ratio:1.16/1;display:flex;align-items:center;justify-content:center;
+  font-size:72px;overflow:hidden;
+  background:linear-gradient(135deg,var(--pc1,#CFE3DD),var(--pc2,#EFE3C2));
+}
+.polaroid .cap{font-family:var(--kai);font-size:13.5px;text-align:center;margin-top:10px;letter-spacing:.04em;line-height:1.5}
+.polaroid .tape{
+  position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-3deg);
+  width:86px;height:22px;background:rgba(245,217,78,.75);box-shadow:0 2px 4px rgba(0,0,0,.12);
+}
+/* AI 红笔批注 */
+.ai-note{
+  font-family:var(--kai);color:var(--red-deep);font-size:13px;line-height:1.75;
+  max-width:200px;margin-top:14px;transform:rotate(-1.2deg);
+}
+.ai-note b{font-weight:700;color:var(--red)}
+
+/* ============================================================
+   卷头
+   ============================================================ */
+.paper-meta{
+  display:flex;justify-content:space-between;gap:16px;
+  font-family:var(--mono);font-size:11px;color:var(--pencil);letter-spacing:.1em;
+}
+.head{position:relative;padding-top:44px}
+.seal-secret{
+  display:inline-block;transform:rotate(-4deg);
+  font-family:var(--kai);font-weight:700;font-size:13px;color:var(--red);
+  border:2px solid var(--red);border-radius:6px;padding:3px 10px;letter-spacing:.18em;text-indent:.18em;
+  mix-blend-mode:multiply;margin-bottom:16px;
+}
+.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:center;padding-top:30px}
+.hero-left{position:relative}
+.kicker{font-family:var(--mono);font-size:11.5px;color:var(--pencil);letter-spacing:.16em;margin-bottom:20px}
+h1.brand{
+  font-family:var(--kai);font-weight:700;font-size:clamp(42px,5.4vw,64px);
+  letter-spacing:.08em;line-height:1.25;white-space:nowrap;
+}
+h1.brand .em{font-style:normal;color:var(--red)}
+.slogan{
+  font-family:var(--kai);font-weight:700;font-size:clamp(23px,3vw,31px);
+  letter-spacing:.08em;margin-top:14px;line-height:1.6;
+}
+.hero-sub{color:var(--ink-soft);line-height:2;margin-top:16px;max-width:34em}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}
+.exam-info{
+  font-family:var(--mono);font-size:11.5px;color:var(--pencil);letter-spacing:.08em;
+  margin-top:30px;line-height:2;
+}
+.exam-info i{font-style:normal;color:var(--red);margin:0 8px}
+.hero-right{position:relative}
+.hero-right .official-seal{left:0;top:-30px;width:112px;z-index:5}
+.hero-pols{position:relative;display:flex;justify-content:center;align-items:flex-start;padding:20px 0 4px}
+.hero-note{max-width:250px;margin:18px 12px 0 auto;transform:rotate(-1.5deg)}
+.hero-pols .polaroid{width:186px}
+.hp1{transform:rotate(-5deg) translateY(8px);z-index:1}
+.hp2{transform:rotate(4deg) translateX(-30px) translateY(40px);z-index:2}
+.hp1:hover{transform:rotate(-1deg) translateY(0)}
+.hp2:hover{transform:rotate(1deg) translateY(30px)}
+.hp2 .stamp-sm{top:34%;right:-24px;bottom:auto}
+.hero-pols .ai-note{margin-top:16px}
+
+/* ---- 考生须知 ---- */
+.notice{padding:22px 26px}
+.notice h2{
+  font-family:var(--kai);font-size:16px;letter-spacing:.3em;text-indent:.3em;
+  display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:2px dashed rgba(139,139,131,.4);padding-bottom:12px;margin-bottom:14px;
+}
+.notice h2 small{font-family:var(--mono);font-size:10.5px;color:var(--pencil);letter-spacing:.12em;font-weight:400}
+.notice ol{list-style:none}
+.notice li{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:7px 0;font-size:14.5px;line-height:1.9;color:var(--ink-soft)}
+.notice li b{color:var(--ink);font-weight:600}
+.notice li .no{font-family:var(--mono);color:var(--red);font-size:13px;padding-top:2px}
+
+/* ============================================================
+   大题区块
+   ============================================================ */
+.q{margin-top:74px}
+.q-head{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--ink);padding-bottom:12px}
+.q-head h2{font-family:var(--kai);font-weight:700;font-size:clamp(22px,3vw,29px);letter-spacing:.1em}
+.q-head h2 i{font-style:normal;color:var(--red)}
+.q-head small{font-family:var(--mono);font-size:11px;color:var(--pencil);letter-spacing:.12em;margin-left:auto;text-align:right}
+.q-lead{color:var(--ink-soft);line-height:2;margin-top:18px}
+
+/* ---- 一、填空题:今日命题 ---- */
+.prompt-card{margin-top:24px;padding:24px 28px 26px}
+.prompt-card .exam-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.exam-badge{
+  font-family:var(--kai);font-size:12px;color:var(--red);border:1.5px solid var(--red);
+  padding:3px 9px;border-radius:5px;letter-spacing:.2em;text-indent:.2em;white-space:nowrap;
+}
+.exam-no{font-family:var(--mono);font-size:11px;color:var(--pencil);letter-spacing:.08em;white-space:nowrap}
+.prompt-title{
+  font-family:var(--kai);font-weight:700;font-size:clamp(24px,3.6vw,34px);
+  line-height:1.55;letter-spacing:.05em;padding:16px 2px 6px;
+}
+.prompt-note{font-size:13px;color:var(--ink-soft);line-height:1.9;padding-top:6px}
+.swap-t{transition:opacity .16s ease,transform .16s ease}
+.swapping .swap-t{opacity:0;transform:translateY(5px)}
+.btn-change{
+  font-family:var(--mono);font-size:12px;color:var(--ink);background:#fff;
+  border:1.5px solid var(--ink);border-radius:8px;padding:6px 13px;cursor:pointer;
+  letter-spacing:.08em;transition:transform .08s,background .15s;white-space:nowrap;
+}
+.btn-change:hover{background:var(--paper-dim)}
+.btn-change:active{transform:translateY(1px)}
+.gallery{display:flex;flex-wrap:wrap;gap:30px 36px;justify-content:center;margin-top:34px}
+.gallery .polaroid{width:196px}
+.g1{transform:rotate(-3deg)}
+.g2{transform:rotate(2deg) translateY(12px)}
+.g3{transform:rotate(-1.5deg)}
+.g1:hover{transform:rotate(0)}
+.g2:hover{transform:rotate(0) translateY(6px)}
+.g3:hover{transform:rotate(0)}
+.gallery-note{font-family:var(--mono);font-size:12px;color:var(--pencil);text-align:center;margin-top:34px;letter-spacing:.06em;line-height:2}
+
+/* ---- 二、简答题:流程 ---- */
+.steps{margin-top:10px}
+.step{display:grid;grid-template-columns:72px 1fr;gap:20px;padding:26px 0;border-bottom:2px dashed rgba(139,139,131,.4);align-items:start}
+.step:last-child{border-bottom:none}
+.step .no{font-family:var(--mono);font-weight:700;font-size:30px;color:var(--red);line-height:1;padding-top:3px}
+.step .no small{display:block;font-size:10px;color:var(--pencil);letter-spacing:.2em;margin-top:8px;font-weight:400}
+.step h3{font-family:var(--kai);font-weight:700;font-size:19px;letter-spacing:.08em}
+.step p{color:var(--ink-soft);line-height:2;margin-top:8px;font-size:14.5px}
+.step p .tag-hl{font-weight:400;color:var(--ink)}
+.modes{display:flex;margin-top:30px;border-top:2px dashed rgba(139,139,131,.4);border-bottom:2px dashed rgba(139,139,131,.4);padding:22px 0}
+.mode{flex:1;padding:0 26px;border-left:2px dashed rgba(139,139,131,.4)}
+.mode:first-child{border-left:none;padding-left:2px}
+.mode .m-name{font-family:var(--kai);font-weight:700;font-size:16.5px;letter-spacing:.06em}
+.mode .m-sub{font-family:var(--mono);font-size:11px;color:var(--pencil);margin-top:8px;line-height:1.9;letter-spacing:.04em}
+
+/* ---- 三、阅读理解:AI 阅卷 ---- */
+.role{display:grid;grid-template-columns:52px 1fr;gap:20px;padding:26px 0;border-bottom:2px dashed rgba(139,139,131,.4);align-items:start}
+.role:last-of-type{border-bottom:none}
+.role .idx{
+  width:44px;height:44px;border-radius:50%;border:2px double var(--red);color:var(--red);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--kai);font-weight:700;font-size:19px;margin-top:2px;
+}
+.role h3{font-family:var(--kai);font-weight:700;font-size:18px;letter-spacing:.08em}
+.role h3 small{font-family:var(--mono);font-size:10.5px;color:var(--pencil);letter-spacing:.14em;margin-left:10px;font-weight:400}
+.role p{color:var(--ink-soft);line-height:2;margin-top:7px;font-size:14.5px}
+.role .ex{
+  margin-top:12px;font-family:var(--kai);color:var(--red-deep);font-size:14px;line-height:1.8;
+  background:rgba(214,72,47,.06);border-left:3px solid var(--red);
+  padding:9px 14px;border-radius:0 7px 7px 0;
+}
+.measure{
+  margin-top:36px;border:2px solid var(--red);border-radius:10px;padding:18px 22px 16px;
+  font-family:var(--kai);color:var(--red-deep);font-size:14.5px;line-height:2;position:relative;
+  transform:rotate(-.4deg);
+}
+.measure::before{
+  content:"批注";font-family:var(--mono);font-size:11px;position:absolute;top:-10px;left:16px;
+  background:var(--paper);padding:0 9px;color:var(--red);border:1.5px solid var(--red);border-radius:4px;
+  letter-spacing:.2em;text-indent:.2em;
+}
+.blank-card{
+  background:#fff;padding:11px 11px 13px;border:1px solid rgba(35,50,77,.25);
+  box-shadow:6px 8px 16px rgba(35,50,77,.22);width:196px;position:relative;flex:none;
+  transition:transform .25s ease;transform:rotate(1.5deg) translateY(12px);
+}
+.blank-card:hover{transform:rotate(0) translateY(6px)}
+.blank-card .ph{
+  aspect-ratio:1.16/1;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;
+  background:var(--paper);border:2px dashed rgba(139,139,131,.45);
+}
+.blank-card .ph .zi{font-family:var(--kai);font-weight:700;font-size:30px;color:var(--pencil);letter-spacing:.3em;text-indent:.3em}
+.blank-card .ph .zi-sub{font-family:var(--mono);font-size:10px;color:var(--pencil);letter-spacing:.14em}
+.blank-card .cap{font-family:var(--kai);font-size:13.5px;text-align:center;margin-top:10px;color:var(--ink-soft)}
+
+/* ---- 四、多选题 ---- */
+.opts{margin-top:8px}
+.opt{display:grid;grid-template-columns:32px 1fr;gap:16px;padding:20px 0;border-bottom:2px dashed rgba(139,139,131,.4);align-items:start}
+.opt:last-child{border-bottom:none}
+.box{
+  width:24px;height:24px;border:2px solid var(--ink);border-radius:5px;background:#fff;
+  position:relative;margin-top:3px;
+}
+.box::after{
+  content:"";position:absolute;left:6px;top:1px;width:7px;height:13px;
+  border:solid var(--red);border-width:0 3px 3px 0;
+  transform:rotate(42deg) scale(0);
+}
+.js .rv.on .box::after{transition:transform .3s cubic-bezier(.2,1.6,.4,1) .25s;transform:rotate(42deg) scale(1)}
+.opt .t{font-weight:700;font-size:15px;line-height:1.7}
+.opt .d{font-size:14px;color:var(--ink-soft);margin-top:4px;line-height:1.9}
+.opt:nth-child(1) .box::after{transition-delay:.15s}
+.opt:nth-child(2) .box::after{transition-delay:.3s}
+.opt:nth-child(3) .box::after{transition-delay:.45s}
+.opt:nth-child(4) .box::after{transition-delay:.6s}
+.opt:nth-child(5) .box::after{transition-delay:.75s}
+.opt:nth-child(6) .box::after{transition-delay:.9s}
+
+/* ---- 阅卷总评 ---- */
+.verdict{text-align:center;margin-top:84px}
+.verdict .stamp-lg{margin-bottom:8px}
+.verdict .words{font-family:var(--kai);font-weight:700;font-size:clamp(20px,2.8vw,27px);line-height:2.1;margin-top:22px;letter-spacing:.06em}
+.verdict .sig{font-family:var(--mono);font-size:12px;color:var(--pencil);margin-top:12px;letter-spacing:.1em}
+
+/* ---- 领卷 CTA ---- */
+.final{margin-top:46px;padding:36px 34px 34px;text-align:center}
+.final::before,.final::after{
+  content:"";position:absolute;left:14px;width:10px;height:10px;border-radius:50%;
+  background:var(--paper);border:2px solid rgba(139,139,131,.5);box-shadow:inset 1px 2px 3px rgba(35,50,77,.28);
+}
+.final::before{top:22px}
+.final::after{bottom:22px}
+.final h3{font-family:var(--kai);font-weight:700;font-size:clamp(20px,2.6vw,25px);letter-spacing:.1em}
+.final .row{display:flex;gap:30px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:26px}
+.final .qr{
+  width:118px;height:118px;border:2px dashed var(--pencil);border-radius:8px;
+  display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;
+  color:var(--pencil);font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  background:repeating-linear-gradient(45deg,transparent 0 7px,rgba(139,139,131,.07) 7px 14px);
+}
+.final .cta-cell{text-align:left;max-width:300px}
+.final .cta-cell .btn{white-space:nowrap}
+.final .hint{font-family:var(--mono);font-size:11.5px;color:var(--pencil);margin-top:14px;letter-spacing:.06em;line-height:2}
+
+/* ---- 卷尾 ---- */
+.foot{margin-top:78px;text-align:center}
+.foot .tagline{font-family:var(--kai);font-weight:700;font-size:clamp(18px,2.4vw,23px);margin-top:30px;letter-spacing:.1em;line-height:1.9}
+.foot .mono-line{font-family:var(--mono);font-size:12px;color:var(--pencil);margin-top:14px;letter-spacing:.08em;line-height:2.2}
+.foot .page-no{font-family:var(--mono);font-size:10.5px;color:var(--pencil);opacity:.7;margin-top:22px;letter-spacing:.14em}
+
+/* ---- 滚动渐显 ---- */
+.js .rv{opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease}
+.js .rv.on{opacity:1;transform:none}
+.js .rv.d1{transition-delay:.08s}
+.js .rv.d2{transition-delay:.16s}
+.js .rv.d3{transition-delay:.24s}
+
+/* ============================================================
+   响应式
+   ============================================================ */
+@media (max-width:860px){
+  body{padding:0;background:var(--paper)}
+  .chalk-row{display:none}
+  .paper{
+    max-width:none;margin:0;border-radius:0;box-shadow:none;
+    padding:26px 22px 44px;background-size:24px 24px;
+  }
+  .binding{display:none}
+  .head{padding-top:34px}
+  .head .seal-secret{position:static;display:inline-block;margin-bottom:20px}
+  .paper-meta{flex-direction:column;gap:4px}
+  .hero{grid-template-columns:1fr;gap:6px;padding-top:8px}
+  .hero-right .official-seal{width:86px;left:-4px;top:-20px}
+  .kicker{margin-bottom:14px}
+  .hero-sub{margin-top:12px}
+  .cta-row .btn{flex:1;min-width:220px}
+  .hero-pols{padding:26px 0 8px;gap:0}
+  .hp1{transform:rotate(-4deg) translateY(0)}
+  .hp2{transform:rotate(4deg) translateX(-26px) translateY(24px)}
+  .hp2:hover{transform:rotate(1deg) translateY(18px)}
+  .hero-pols .polaroid{width:168px}
+  .hero-note{max-width:220px;margin-right:6px}
+  .q{margin-top:58px}
+  .q-head{flex-wrap:wrap;gap:6px 14px}
+  .q-head small{margin-left:0;width:100%}
+  .prompt-card .exam-no{display:none}
+  .step{grid-template-columns:56px 1fr;gap:14px;padding:22px 0}
+  .step .no{font-size:24px}
+  .modes{flex-direction:column;gap:18px;padding:20px 0}
+  .mode{border-left:none;padding:0 2px}
+  .role{grid-template-columns:44px 1fr;gap:14px}
+  .role .idx{width:38px;height:38px;font-size:16px}
+  .gallery{gap:26px 20px;margin-top:28px}
+  .gallery .polaroid,.blank-card{width:172px}
+  .final{padding:30px 22px 28px}
+  .final .row{gap:22px}
+  .final .cta-cell{text-align:center}
+  .foot{margin-top:60px}
+}
+@media (max-width:400px){
+  .hero-pols .polaroid{width:150px}
+  .hp2{transform:rotate(4deg) translateX(-18px) translateY(20px)}
+  .gallery .polaroid,.blank-card{width:160px}
+}
+/* ---- 动画降级 ---- */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none !important;transition:none !important}
+  /* 动画被禁用时,红章不能因入场动画失效而永久隐藏 */
+  .js .rv .stamp{opacity:.88}
+}
+</style>
+</head>
+<body>
+
+<div class="chalk-row" aria-hidden="true">
+  <div class="chalk-main">下一次考试,就在你的微信群</div>
+  <div class="chalk-sub">人间命题 · 全国统一(不)考试 · 今日开考</div>
+</div>
+
+<main class="paper">
+  <div class="binding" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+  <!-- ==================== 卷头 ==================== -->
+  <div class="paper-meta mono rv">
+    <span>试卷代号:RJ-2026-A · 秋季卷</span>
+    <span>考号:＿＿＿＿＿＿</span>
+  </div>
+
+  <header class="head">
+    <div class="hero">
+      <div class="hero-left rv">
+        <div class="seal-secret">绝密★启用前</div>
+        <div class="kicker">科目:观察力与脑洞 · 命题号 0001</div>
+        <h1 class="brand">「人间<span class="em">命题</span>」</h1>
+        <p class="slogan">AI 出题,<span class="tag-hl">全人类作答</span>。</p>
+        <p class="hero-sub">每天一道荒诞命题,三五个好友各拍一张,AI 当裁判兼毒舌点评,赢家拿走明天的出题权。拍照人人都会,缺的从来不是技术,而是一个「为什么要拍这张」的理由。</p>
+        <div class="cta-row">
+          <button class="btn btn-primary" id="btn-copy" type="button">打开微信 · 搜索「人间命题」</button>
+          <a class="btn" href="#q1">先看考题 ↓</a>
+        </div>
+        <div class="exam-info">考试时间:每天<i>✦</i>形式:开卷<i>✦</i>满分:不限<i>✦</i>考生:所有微信群</div>
+      </div>
+      <div class="hero-right">
+        <svg class="official-seal" viewBox="0 0 120 120" aria-hidden="true">
+          <defs><path id="sealArc" d="M60,60 m-40,0 a40,40 0 1,1 80,0 a40,40 0 1,1 -80,0"/></defs>
+          <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-width="3"/>
+          <text font-size="14" letter-spacing="6" fill="currentColor" font-family="Kaiti SC,STKaiti,KaiTi,楷体,serif" font-weight="700">
+            <textPath href="#sealArc" startOffset="14%">人间命题考试中心</textPath>
+          </text>
+          <text x="60" y="66" text-anchor="middle" font-size="18" fill="currentColor">★</text>
+          <text x="60" y="88" text-anchor="middle" font-size="11" letter-spacing="2" fill="currentColor" font-family="Kaiti SC,STKaiti,KaiTi,楷体,serif">监制</text>
+        </svg>
+        <div class="hero-pols">
+          <div class="polaroid hp1 rv d1" style="--pc1:#D8E6D2;--pc2:#EFE3C2">
+            <span class="tape" aria-hidden="true"></span>
+            <div class="ph" aria-hidden="true">🍜</div>
+            <div class="cap">泡面冒的不是热气是志气</div>
+          </div>
+          <div class="polaroid hp2 rv d2" style="--pc1:#D6E4EA;--pc2:#E9DDC8">
+            <span class="tape" aria-hidden="true"></span>
+            <div class="ph" aria-hidden="true">🧦</div>
+            <div class="cap">单只袜子的葬礼</div>
+            <span class="stamp stamp-sm" aria-hidden="true">已阅</span>
+          </div>
+        </div>
+        <div class="hero-note">
+          <div class="ai-note rv d3"><b>批:</b>另一只在洗衣机深处。本局最佳悬疑片,结局永远缺席。</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="seal-line rv">密封线内不要答题</div>
+
+  <!-- ==================== 考生须知 ==================== -->
+  <section class="notice sheet-card rv" aria-label="考生须知">
+    <h2>考生须知<small>全员适用 · 无需报名</small></h2>
+    <ol>
+      <li><span class="no">01</span><span><b>本卷共四大题,满分不限。</b>答题越多,揭晓越好笑。</span></li>
+      <li><span class="no">02</span><span><b>应试工具:</b>一部手机、一个微信群,和一颗想玩的心。</span></li>
+      <li><span class="no">03</span><span>十秒一张,拍不出来可交<b>白卷</b>,空白也是一种构图。</span></li>
+      <li><span class="no">04</span><span><b>考场纪律:</b>不许摆拍得太认真,敷衍有奖。</span></li>
+    </ol>
+  </section>
+
+  <!-- ==================== 一、填空题 ==================== -->
+  <section class="q" id="q1">
+    <div class="q-head rv">
+      <h2>一<i>、</i>填空题</h2>
+      <small>观察力测试 · 全员必答 · 每日更新</small>
+    </div>
+    <p class="q-lead rv">先来做一道今天的题。全卷只有一个动作:<span class="tag-hl">拍</span>。</p>
+
+    <div class="prompt-card sheet-card rv" id="prompt-card">
+      <div class="exam-head">
+        <span class="exam-badge swap-t" id="prompt-style">抽象概念型</span>
+        <span class="exam-no">第 2026-273 号命题</span>
+        <button class="btn-change" id="btn-change" type="button">换一题 ↻</button>
+      </div>
+      <div class="prompt-title swap-t" id="prompt-title">「拍下今天的风。」</div>
+      <p class="prompt-note">命题来自官方题库、上一局的赢家,或者 AI 的现场发挥。你觉得没法拍?那恭喜你,出题人要的就是这个效果。</p>
+    </div>
+
+    <div class="gallery">
+      <div class="polaroid g1 rv" style="--pc1:#CFE3DD;--pc2:#E4DCC3">
+        <span class="tape" aria-hidden="true"></span>
+        <div class="ph" aria-hidden="true">🌳</div>
+        <div class="cap">歪脖子树</div>
+        <div class="ai-note"><b>批:</b>摄影师坚称风来了。作为证据,他提供了一棵树和一段模糊的信仰。</div>
+      </div>
+      <div class="polaroid g2 rv d1" style="--pc1:#E4D6C4;--pc2:#D9E2D4">
+        <span class="tape" aria-hidden="true"></span>
+        <div class="ph" aria-hidden="true">🛍️</div>
+        <div class="cap">它自由了</div>
+        <div class="ai-note"><b>批:</b>一只塑料袋的离家出走。你只能拍下它离开的背影,留不住的。</div>
+      </div>
+      <div class="polaroid g3 rv d2" style="--pc1:#DAD4E2;--pc2:#E8E0C9">
+        <span class="tape" aria-hidden="true"></span>
+        <div class="ph" aria-hidden="true">🐈</div>
+        <div class="cap">它说这里归它管</div>
+        <div class="ai-note"><b>批:</b>猫没有同意过任何命题,但它配合了。这就是格局。</div>
+      </div>
+    </div>
+    <p class="gallery-note rv">匿名上墙之后,大家先猜「这张是谁拍的」,再投票。<br>猜对越多,结算加分。</p>
+  </section>
+
+  <!-- ==================== 二、简答题 ==================== -->
+  <section class="q" id="q2">
+    <div class="q-head rv">
+      <h2>二<i>、</i>简答题</h2>
+      <small>流程默写 · 开卷 · 可直接抄给朋友</small>
+    </div>
+    <p class="q-lead rv">一局的完整流程,四步,全程不需要盯梢。</p>
+
+    <div class="steps">
+      <div class="step rv">
+        <div class="no">01<small>开局</small></div>
+        <div>
+          <h3>抽一道题,丢进群里</h3>
+          <p>官方每日命题、自己出题、让 AI 代出,三选一。创建后一张小程序卡片转发进微信群,朋友点卡片就进场。</p>
+        </div>
+      </div>
+      <div class="step rv d1">
+        <div class="no">02<small>交卷</small></div>
+        <div>
+          <h3>各拍一张,十秒就够</h3>
+          <p>不比技术,只比脑洞。拍不出来可以<span class="tag-hl">交白卷</span>,交卷本身就是一种勇气。</p>
+        </div>
+      </div>
+      <div class="step rv d2">
+        <div class="no">03<small>揭晓</small></div>
+        <div>
+          <h3>匿名上墙,先猜人,再投票</h3>
+          <p>第一步猜「这张是谁拍的」,第二步投 🏆 最绝奖和 🍬 最敷衍奖。不能投自己,猜错要扣分。</p>
+        </div>
+      </div>
+      <div class="step rv d3">
+        <div class="no">04<small>结算</small></div>
+        <div>
+          <h3>AI 短评逐条揭晓,赢家拿走出题权</h3>
+          <p>全场笑点所在。最绝奖得主获得下一局的出题权,还可以转赠同局玩家。战报海报自动生成,发回群里就是招新现场。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modes rv">
+      <div class="mode">
+        <div class="m-name">⚡ 闪电局</div>
+        <div class="m-sub">2 小时 · 一集剧的工夫<br>适合饭桌与课间</div>
+      </div>
+      <div class="mode">
+        <div class="m-name">🌙 长夜局</div>
+        <div class="m-sub">24 小时 · 想起来就交一张<br>适合一个群慢慢玩</div>
+      </div>
+      <div class="mode">
+        <div class="m-name">🙋 一人也开得了局</div>
+        <div class="m-sub">每天一题单机拍<br>AI 认真点评你的每一张</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 三、阅读理解 ==================== -->
+  <section class="q" id="q3">
+    <div class="q-head rv">
+      <h2>三<i>、</i>阅读理解</h2>
+      <small>材料作文 · 阅卷人非人类</small>
+    </div>
+    <p class="q-lead rv">AI 在一局游戏里干三份工:<span class="tag-hl">出题、判定、点评</span>。薪水为零,怨言也为零。</p>
+
+    <div class="roles">
+      <div class="role rv">
+        <div class="idx" aria-hidden="true">①</div>
+        <div>
+          <h3>出题人<small>PROMPTER</small></h3>
+          <p>没灵感时替你出一道荒诞命题;官方题库也由它离线批量预生成,每天准时上新。</p>
+          <div class="ex">「拍下一样东西的遗照(它还活着)。」</div>
+        </div>
+      </div>
+      <div class="role rv d1">
+        <div class="idx" aria-hidden="true">②</div>
+        <div>
+          <h3>裁判<small>JUDGE</small></h3>
+          <p>判定照片是否跑题,输出「通过 / 存疑 / 跑题」三档。存疑一律放行,交给玩家投票裁决。</p>
+          <div class="ex">它永远不告诉你「你拍得不好」,只说「你这理解很清奇」。</div>
+        </div>
+      </div>
+      <div class="role rv d2">
+        <div class="idx" aria-hidden="true">③</div>
+        <div>
+          <h3>点评员<small>CRITIC</small></h3>
+          <p>给每张作品写一句毒舌短评。这是全场笑点,也是你会截图发朋友圈的那句话。</p>
+          <div class="ex">「这把伞 2019 年入职,主要成就是三次被遗落在地铁仍坚守岗位。」</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="measure rv">AI 的分寸感:它是暖场主持人,不是独裁评委。只淘汰明显跑题和违规的作品,其余全部交给一群最好的评委:你的朋友。</div>
+
+    <div class="gallery">
+      <div class="polaroid g1 rv" style="--pc1:#E3D8C6;--pc2:#D5DFD2">
+        <span class="tape" aria-hidden="true"></span>
+        <div class="ph" aria-hidden="true">🪑</div>
+        <div class="cap">这把椅子坐了八年</div>
+        <div class="ai-note"><b>批:</b>它见证了你从 120 斤到现在的全过程,守口如瓶。</div>
+      </div>
+      <div class="polaroid g2 rv d1" style="--pc1:#D2E0E4;--pc2:#E9E0CB">
+        <span class="tape" aria-hidden="true"></span>
+        <div class="ph" aria-hidden="true">📱</div>
+        <div class="cap">99% 电量的焦虑</div>
+        <div class="ai-note"><b>批:</b>永远差的那 1%,是当代人安全感的精确计量单位。</div>
+      </div>
+      <div class="blank-card rv d2">
+        <div class="ph"><span class="zi">空白</span><span class="zi-sub">BLANK · 已交卷</span></div>
+        <div class="cap">(白卷,附赠一个真诚的耸肩)</div>
+        <div class="ai-note"><b>批:</b>白卷。阅卷老师认为这是一种态度,也是一种放弃。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 四、多选题 ==================== -->
+  <section class="q" id="q4">
+    <div class="q-head rv">
+      <h2>四<i>、</i>多选题</h2>
+      <small>以下说法正确的有 · 参考答案:全选</small>
+    </div>
+
+    <div class="opts rv">
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">最敷衍奖与最绝奖同等荣耀。</div>
+          <div class="d">敷衍得恰到好处也是一种才华。不擅长拍照的人,也敢交作品。</div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">赢家拿走下一局的出题权,命题在人与人之间流转。</div>
+          <div class="d">出题权是游戏里唯一的权力,还能转赠同局玩家。</div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">答卷不足时,墙上会混入一张往届作品当卧底。</div>
+          <div class="d">别猜错人。卧底不参与评奖,但专治人少。</div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">48 小时内再次交卷,连击自动续上。</div>
+          <div class="d">断一天,从头再来。combo 是另外半个留存系统。</div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">一局的最小单位只是一个微信群。</div>
+          <div class="d">没有公共广场,没有陌生人,没有实时在线压力。想起来就玩一把。</div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="box" aria-hidden="true"></span>
+        <div>
+          <div class="t">AI 不可用时也能玩。</div>
+          <div class="d">规则兜底与文案池随时待命,判定存疑一律放行。永远开得了局。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 阅卷总评 ==================== -->
+  <section class="verdict rv">
+    <div class="stamp stamp-lg" aria-hidden="true">优</div>
+    <p class="words">观察力清奇,脑洞过剩,与人间相处融洽。<br>准予毕业,明日请早。</p>
+    <div class="sig">阅卷 AI · 即日</div>
+  </section>
+
+  <!-- ==================== 领卷 CTA ==================== -->
+  <section class="final sheet-card rv" aria-label="开始考试">
+    <h3>现在,轮到你出题了。</h3>
+    <div class="row">
+      <div class="qr" aria-label="小程序码占位,请替换为真实小程序码">
+        <span>小程序码</span>
+        <span>预 留 位</span>
+      </div>
+      <div class="cta-cell">
+        <button class="btn btn-primary" id="btn-copy-2" type="button">复制小程序名,去微信搜索</button>
+        <div class="hint">打开微信 → 发现 → 小程序 → 搜索「人间命题」<br>建一局,转发到群,今天就开始考。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 卷尾 ==================== -->
+  <footer class="foot">
+    <div class="seal-line rv">密封线 · 考试结束,请停笔</div>
+    <p class="tagline rv">每天一道题,考的不是摄影,<span class="tag-hl">是脑洞</span>。</p>
+    <div class="mono-line rv d1">
+      「人间命题」 · AI 出题,全人类作答 · 一个微信群就是一局<br>
+      本页由试卷讲义视觉体系排印 · 字体:楷体 / 宋体 / PingFang
+    </div>
+    <div class="page-no">第 1 页(共 1 页) · 人间命题考试中心 制</div>
+  </footer>
+</main>
+
+<div class="chalk-row chalk-end" aria-hidden="true">
+  <div class="chalk-sub">交卷方式:打开微信,搜索小程序「人间命题」</div>
+</div>
+
+<script>
+(function(){
+  var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var rvs=document.querySelectorAll('.rv');
+  if(reduced||!('IntersectionObserver' in window)){
+    rvs.forEach(function(el){el.classList.add('on')});
+  }else{
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target)}
+      });
+    },{threshold:.15,rootMargin:'0px 0px -6% 0px'});
+    rvs.forEach(function(el){io.observe(el)});
+  }
+
+  /* 换一题:轮换官方题库真题 */
+  var prompts=[
+    {t:'「拍下今天的风。」',s:'抽象概念型'},
+    {t:'「拍下你家最有资历的物品。」',s:'具体物件型'},
+    {t:'「拍下一个正在努力工作的圆形物体。」',s:'具体物件型'},
+    {t:'「拍下一样看起来值一个亿的东西。」',s:'荒诞限定型'},
+    {t:'「拍下"差一点"。」',s:'抽象概念型'},
+    {t:'「拍下最没用的超能力现场。」',s:'荒诞限定型'},
+    {t:'「拍下你身边最没用的东西。」',s:'具体物件型'}
+  ];
+  var pi=0,card=document.getElementById('prompt-card'),
+      title=document.getElementById('prompt-title'),style=document.getElementById('prompt-style');
+  document.getElementById('btn-change').addEventListener('click',function(){
+    pi=(pi+1)%prompts.length;
+    card.classList.add('swapping');
+    setTimeout(function(){
+      title.textContent=prompts[pi].t;
+      style.textContent=prompts[pi].s;
+      card.classList.remove('swapping');
+    },170);
+  });
+
+  /* 复制小程序名 */
+  function copyName(btn){
+    var done=function(){
+      var old=btn.textContent;
+      btn.textContent='已复制「人间命题」✓';
+      setTimeout(function(){btn.textContent=old},2200);
+    };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText('人间命题').then(done,function(){fallback()});
+    }else{fallback()}
+    function fallback(){
+      var ta=document.createElement('textarea');
+      ta.value='人间命题';ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.select();
+      try{document.execCommand('copy');done()}catch(e){}
+      ta.remove();
+    }
+  }
+  ['btn-copy','btn-copy-2'].forEach(function(id){
+    var btn=document.getElementById(id);
+    if(btn)btn.addEventListener('click',function(){copyName(btn)});
+  });
+})();
+</script>
+</body>
+</html>

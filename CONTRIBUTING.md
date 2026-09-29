@@ -46,11 +46,17 @@ refactor: 抽离揭晓墙 DTO
 提交前至少执行：
 
 ```bash
-npm run smoke
+npm run smoke:all      # 演示模式 62 项 + 云模式 114 项断言
 npm run build:mp-weixin
 ```
 
-涉及云函数、AI、订阅消息、文件上传或内容安全时，还需在微信开发者工具或真机完成双端闭环验证，并在 PR 描述中记录验证环境与结果。
+改了云函数（`cloudfunctions/`）就必须跑 `npm run smoke:cloud`：它用
+`scripts/fake-wx-sdk.js` 内存替身真实执行 `cloudfunctions/main` 的逻辑，
+覆盖入局、局内成员鉴权、匿名性、结算、清扫两阶段、订阅消息、内容检查、口袋与举报。
+这类「只有真跑一次才会暴露」的缺陷（查询漏 `.get()`、`_id` 未回写）靠读代码是看不出来的。
+
+涉及 AI、订阅消息、文件上传或内容安全的改动，还需在微信开发者工具或真机完成双端闭环验证，
+并在 PR 描述中记录验证环境与结果。
 
 ## 文档同步规则
 

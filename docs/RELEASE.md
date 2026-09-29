@@ -43,7 +43,7 @@
 1. **升级为企业/个体工商户主体**（个体工商户注册门槛低、当天可下证）；
 2. **弱化公共属性**：把「年鉴」改成只展示自己参与过的局、完全去掉陌生人内容，尝试申报 `图片/摄影` 类目（仍需尝试，不保证）。
 
-> README §7 与 `cloudfunctions/README.md` §7 也提到了同一结论。
+> `cloudfunctions/README.md` §7「内容合规清单」也提到了同一结论。
 
 ---
 
@@ -60,15 +60,16 @@
 # 3. 上传云函数（右键 → 上传并部署：云端安装依赖）
 #    cloudfunctions/main   ← 记得验证 sweepTrigger 每 5 分钟触发
 #    cloudfunctions/timer
-# 4. 建 7 个集合 + 索引（users/rounds/entries/votes/guesses/prompts/counters）
+# 4. 建 8 个集合 + 索引（users/rounds/entries/votes/guesses/prompts/counters/reports）
 # 5. 初始化题库：云函数 main → 云端测试 → { "action": "admin.seedPrompts", "payload": {} }
 # 6. 云函数 main → 配置 → 环境变量
 #    AI_API_KEY / AI_BASE_URL / AI_MODEL / AI_VISION_MODEL
-#    TMPL_GOT_VOTED / TMPL_YOUR_TURN / ADMIN_OPENIDS
+#    TMPL_GOT_VOTED / TMPL_YOUR_TURN / TMPL_ROUND_REVEALED / ADMIN_OPENIDS
 ```
 
-**第二个硬门槛 —— 图片内容安全**。目前只做了文本 `security.msgSecCheck`，
-图片靠 AI 视觉模型兜底（`verdict=off` 不上墙）。UGC 类目审核通常会要求：
+**第二个硬门槛 —— 图片内容安全**。文本侧 `security.msgSecCheck` 已会真正拦违规内容
+（判定违规即拒绝，接口不可用时才降级放行）；图片侧仍靠 AI 视觉模型兜底（`verdict=off` 不上墙）。
+UGC 类目审核通常会要求：
 
 ```
 ⬆️ 建议补齐：接入 security.mediaCheckAsync 图片机审
@@ -165,7 +166,7 @@ A 开局 → 分享卡片给 B → B 拍照/交白卷 → A 揭晓 → 双方猜
 
 | 驳回原因 | 对策 |
 |---|---|
-| UGC 无内容审核机制 | 补 `mediaCheckAsync` 图片机审 + 举报入口 |
+| UGC 无内容审核机制 | 举报入口已落库（`reports` 集合 + 控制台处理）；仍需补 `mediaCheckAsync` 图片机审 |
 | 类目不符（个人主体做社交） | 升级主体或弱化公共属性 |
 | 测试账号无法体验完整功能 | 提供体验版二维码 + 明确测试步骤 |
 | 涉及隐私但无隐私指引 | 阶段 3 完成即可 |
@@ -182,11 +183,12 @@ A 开局 → 分享卡片给 B → B 拍照/交白卷 → A 揭晓 → 双方猜
 □ src/manifest.json → mp-weixin.appid 已填
 □ src/config/index.js → USE_CLOUD=true，CLOUD_ENV 已填
 □ main / timer 云函数已部署，sweepTrigger 生效
-□ 7 个数据库集合 + 索引已建
+□ 8 个数据库集合 + 索引已建（含 reports）
 □ 题库已 seed（admin.seedPrompts）
 □ AI 环境变量已配（或接受降级）
+□ 三个订阅消息模板 ID 已配（含 TMPL_ROUND_REVEALED）
+□ ADMIN_OPENIDS 已配，或确认只用控制台初始化题库
 □ 演示模式 UI 已关闭（搜 isDemo）
-□  subscribed message 模板 ID 已填（可选）
 □ DEBUG 相关的 confirm/alert 已清理
 □ 两台真机跑通完整闭环
 □ 版本号 +1

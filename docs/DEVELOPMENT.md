@@ -58,9 +58,20 @@ npm run dev:h5
 
 | 命令 | 检查内容 |
 |---|---|
-| `npm run smoke` | 演示模式完整玩法闭环，当前 39 项断言 |
+| `npm run smoke` | 演示模式完整玩法闭环，当前 62 项断言 |
+| `npm run smoke:cloud` | 云模式（生产）闭环，当前 114 项断言：入局、鉴权、匿名、结算、清扫、口袋、举报 |
+| `npm run smoke:all` | 两套冒烟测试一起跑 |
+| `npm run verify` | `smoke:all` + 小程序构建 |
 | `npm run build:mp-weixin` | uni-app 小程序编译与模块引用 |
 | `npm run build:h5` | H5 编译兼容性 |
+
+### 云模式怎么在没有云环境的情况下测试
+
+`scripts/cloud-smoke.js` 通过 esbuild 的 `--alias` 把 `require('wx-server-sdk')`
+指向内存替身 `scripts/fake-wx-sdk.js`，从而直接执行 `cloudfunctions/main` 的真实分支。
+替身只实现项目用到的那部分 API（等值 / neq / in / lt 查询、点号路径、`inc`、`players.openid` 数组匹配）。
+
+注意：替身不能替代真机验证。云存储、`openapi`、订阅消息的真实行为仍需在微信开发者工具或真机确认。
 
 提交前至少运行：
 
