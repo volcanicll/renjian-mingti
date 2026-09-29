@@ -46,12 +46,17 @@ const cloudApi = {
     return call('entry.submit', { roundId, fileID: up.fileID, caption })
   },
   revealNow: (roundId) => call('round.reveal', { roundId }),
+  joinRound: (roundId) => call('round.join', { roundId }),
   getWall: (roundId) => call('wall.get', { roundId }),
   guess: (roundId, entryId, guessedOpenid) =>
     call('guess.cast', { roundId, entryId, guessedOpenid }),
   vote: (roundId, entryId, tag) => call('vote.cast', { roundId, entryId, tag }),
   giftPower: (roundId, toOpenid) => call('power.gift', { roundId, toOpenid }),
   settle: (roundId) => call('round.settle', { roundId }),
+  savePrompt: ({ promptId, no, text }) => call('save.prompt', { promptId, no, text }),
+  unsavePrompt: (promptId) => call('save.remove', { promptId }),
+  reportEntry: ({ roundId, entryId, reason }) =>
+    call('report.create', { roundId, entryId, reason }),
   getAlbum: () => call('album.get'),
   getPosterQr: (roundId) => call('qr.get', { roundId })
 }

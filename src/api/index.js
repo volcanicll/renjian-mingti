@@ -22,12 +22,14 @@
  *   { roundId, promptText, promptSource:'official'|'ai'|'custom',
  *     mode:'flash'|'overnight', shootLimitSec:int,
  *     status, createdAt, deadlineTs, ownerOpenid, ownerName,
- *     isMine, no:int, submittedCount, hasUndercover,
+ *     isMine, isPlayer, no:int, submittedCount, hasUndercover,
  *     players: [{ openid, nickname, avatar, submitted:boolean }],
  *     myEntry: Entry|null }
+ *     // isPlayer=false 表示我是受邀但还没入局的人，页面应先调 api.joinRound
  *
  * Entry  一份答卷
  *   { entryId, image(临时路径/云文件ID/https), caption, isBlank:boolean,
+ *     emoji, c1, c2,                          // 拍立得占位图与配色（两端同源）
  *     aiVerdict:'pass'|'suspect'|'off', aiReason, award:null|'best'|'lazy'|'quote' }
  *
  * getWall() → { total:int, reviewed:int, hasUndercover:boolean,
@@ -35,10 +37,11 @@
  *     entries: WallEntry[] }
  *
  * WallEntry  揭晓墙卡片（匿名化，绝不含 owner / undercover 信息）
- *   { entryId, image, caption, isMine,
+ *   { entryId, image, emoji, c1, c2, caption, isMine,
  *     aiVerdict?, aiReason?,
  *     myGuess: { openid, correct } | null,   // 猜卧底时 openid === '__undercover__'
  *     myVote: 'best'|'lazy'|'quote'|null }
+ *     // 顺序由 roundId 作种子确定性打乱，同一局多次进入顺序一致
  *
  * SettleResult  结算页
  *   { round:{ roundId, no, promptText, mode },
@@ -56,6 +59,16 @@
  *
  * AlbumItem  年鉴
  *   { entryId, image, caption, date:'MM.DD', promptText, ownerName }
+ *
+ * getBootstrap() → { today:{ promptId, no, text }, myRounds:RoundCard[],
+ *     yesterdayReport: { roundId, promptText, best|null, lazy|null } | null,
+ *     nextTeaser, savedPrompts: SavedPrompt[], profile:Profile }
+ *   // yesterdayReport 的 best / lazy 各自可能为 null，页面必须逐项判空
+ *   // promptId 是「实现内部的题目标识」，演示模式是数字下标、云模式是题库文档 _id，
+ *   //   仅用于口袋去重，页面不要对它做类型假设
+ *
+ * SavedPrompt  口袋里的题
+ *   { promptId, no:int, text, savedAt:ts }
  *
  * ============ v2 玩法要点 ============
  * 1. 局模式：flash 闪电局 2 小时 / overnight 长夜局 24 小时
@@ -85,6 +98,19 @@ const api = {
 
   /** 创建一局 source: official|ai|custom；custom 时必传 text；mode: flash|overnight */
   createRound: ({ source, text, mode }) => impl.createRound({ source, text, mode }),
+
+  /**
+   * 入局：受邀者点开分享卡片后把自己写进该局 players（幂等）。
+   * 没有这一步，云模式下 players 永远只有局主，除局主外没人能交卷。
+   */
+  joinRound: (roundId) => impl.joinRound(roundId),
+
+  /** 收进口袋 / 从口袋移除（今天存下以后开局的题） */
+  savePrompt: (p) => impl.savePrompt(p),
+  unsavePrompt: (promptId) => impl.unsavePrompt(promptId),
+
+  /** 举报一局或一张答卷（UGC 审核要求的内容审核通道） */
+  reportEntry: (opts) => impl.reportEntry(opts),
 
   /** AI 代出一道题 */
   generateAiPrompt: (hint) => impl.generateAiPrompt(hint),
@@ -118,7 +144,7 @@ const api = {
   /** 年鉴：历届最绝奖作品 */
   getAlbum: () => impl.getAlbum(),
 
-  /** 战报海报小程序码（云模式返回图片URL；演示模式返回 null 用假码） */
+  /** 战报海报小程序码：两端统一返回 { url: string|null }，null 时页面用假码 */
   getPosterQr: (roundId) => impl.getPosterQr(roundId),
 
   /** 订阅消息授权包装（模板未配置时静默跳过） */

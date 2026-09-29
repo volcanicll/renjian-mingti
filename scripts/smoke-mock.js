@@ -22,6 +22,10 @@ async function main() {
   // 1. bootstrap
   const boot = await api.getBootstrap()
   ok(boot.today.text.length > 3, 'bootstrap 返回今日命题: ' + boot.today.text)
+  // 每日题编号必须按东八区日期推导（曾经用 UTC 天数，会早上 8 点换题）
+  const expectNo = 1000 + (Math.floor((Date.now() + 8 * 3600 * 1000) / 86400000) % 500)
+  ok(boot.today.no === expectNo, `每日题编号按东八区日期推导（${boot.today.no}）`)
+  ok('quote' in boot.profile.stats, 'profile.stats 含契约字段 quote')
   ok(Array.isArray(boot.myRounds) && boot.myRounds.length === 0, '初始无进行中的局')
   ok(boot.profile.examNo === '1024', '准考证号')
   ok(boot.yesterdayReport && boot.yesterdayReport.best.ownerName, '昨日战报')
@@ -75,7 +79,10 @@ async function main() {
   // 9. 结算
   const res = await api.settle(round.roundId)
   ok(res.round.promptText === round.promptText, '结算返回命题')
-  ok(res.awards.best || res.awards.lazy || true, '奖项产出')
+  // 之前这里是 `awards.best || awards.lazy || true` —— 恒真，等于没断言
+  ok(!!(res.awards.best && res.awards.best.ownerName && res.awards.best.entryId),
+    `最绝奖产出完整: ${res.awards.best && res.awards.best.ownerName}`)
+  ok(!!res.awards.lazy, '最敷衍奖产出')
   ok(res.comments.length === 4 && res.comments.every((c) => c.text && c.ownerName), '4 条 AI 点评齐全')
   ok(res.guessScore.correct === 1 && res.guessScore.total === 1, `猜人成绩 ${res.guessScore.correct}/${res.guessScore.total}`)
   console.log('  · 最绝奖:', res.awards.best && res.awards.best.ownerName, '-', res.awards.best && res.awards.best.caption)
@@ -158,6 +165,60 @@ async function main() {
     try { await api.giftPower(q.roundId, 'npc-ahuang') } catch (e) { giftErr = e.message }
     ok(/出题权/.test(giftErr), '没有出题权时赠予被拦: ' + giftErr)
   }
+
+  // 18. 生产模式契约补齐后的新增断言
+  // 18.1 入局：幂等，且返回 isPlayer（云模式靠它判断受邀者是否要先入局）
+  const j1 = await api.joinRound(q.roundId)
+  ok(j1.isPlayer === true, 'joinRound 返回 isPlayer=true')
+  const j2 = await api.joinRound(q.roundId)
+  ok(j2.players.length === j1.players.length, 'joinRound 幂等：重复入局不增员')
+
+  // 18.2 海报小程序码：两端统一返回 { url }
+  const qr = await api.getPosterQr(q.roundId)
+  ok(qr && typeof qr === 'object' && 'url' in qr, 'getPosterQr 统一返回 { url }')
+
+  // 18.3 口袋：存入去重、移除生效、空题被拦
+  const saved1 = await api.savePrompt({ promptId: 'p-1', no: 1001, text: '拍下此刻的风' })
+  ok(saved1.length === 1 && saved1[0].text === '拍下此刻的风', '口袋存入成功')
+  const saved2 = await api.savePrompt({ promptId: 'p-1', no: 1001, text: '拍下此刻的风' })
+  ok(saved2.length === 1, '同一道题只进一次口袋')
+  const saved3 = await api.savePrompt({ promptId: 'p-2', no: 1002, text: '拍下此刻的雨' })
+  ok(saved3.length === 2 && saved3[0].promptId === 'p-2', '新题排在最前')
+  let pocketErr = ''
+  try { await api.savePrompt({ promptId: 'p-3', text: '' }) } catch (e) { pocketErr = e.message }
+  ok(/空卷/.test(pocketErr), '空题不能进袋: ' + pocketErr)
+  const saved4 = await api.unsavePrompt('p-1')
+  ok(saved4.length === 1 && saved4[0].promptId === 'p-2', '从口袋移除生效')
+  const boot3 = await api.getBootstrap()
+  ok(Array.isArray(boot3.savedPrompts) && boot3.savedPrompts.length === 1, 'bootstrap 下发 savedPrompts')
+
+  // 18.4 举报：理由校验 + 真的落库（不是只弹个框）
+  let repErr = ''
+  try { await api.reportEntry({ reason: 'x' }) } catch (e) { repErr = e.message }
+  ok(/说明/.test(repErr), '举报理由太短被拦: ' + repErr)
+  const rep = await api.reportEntry({ roundId: round.roundId, reason: '这张图和命题完全无关' })
+  ok(rep.ok === true, '举报提交成功')
+
+  // 18.5 同一局的揭晓墙顺序稳定（云模式按 roundId 作种子）
+  const wa = await api.getWall(round.roundId)
+  const wb = await api.getWall(round.roundId)
+  ok(wa.entries.map((e) => e.entryId).join() === wb.entries.map((e) => e.entryId).join(),
+    '同局揭晓墙顺序稳定')
+
+  // 18.6 展示字段符合契约（两端同源，页面直接消费）
+  ok(wa.entries.every((e) => e.emoji && 'c1' in e && 'c2' in e), '揭晓墙答卷带 emoji/c1/c2')
+  ok(wa.canSettle === true, 'getWall 下发 canSettle（页面据此决定给不给「看结果」按钮）')
+  ok(typeof wa.settleAtTs === 'number' && wa.settleAtTs > 0, 'getWall 下发结算窗口结束时间')
+  ok(wa.maxAnnotations === 12, 'getWall 下发批注上限')
+  const mine = (await api.getRound(b.roundId)).myEntry
+  ok(mine && mine.emoji === '🕳️' && mine.isBlank === true, '白卷 myEntry 带 emoji 与 isBlank')
+  ok('c1' in mine && 'c2' in mine, 'myEntry 带配色字段')
+
+  // 18.7 年鉴字段符合 AlbumItem 契约（种子与真实入册条目一致）
+  const alb = await api.getAlbum()
+  ok(alb.length > 0, `年鉴非空（${alb.length} 条）`)
+  ok(alb.every((a) => a.caption !== undefined && a.promptText !== undefined),
+    `年鉴条目符合契约字段（${alb.length} 条）`)
 
   console.log(`\n全部通过 ✓ (${pass} 断言)`)
 }

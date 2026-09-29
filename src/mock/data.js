@@ -85,14 +85,19 @@ export const AI_COMMENT_POOL = [
   'AI 裁判看了很久，决定把这理解为一种风格。'
 ]
 
-/** 年鉴种子数据 */
+/**
+ * 年鉴种子数据。
+ * 键名必须与 AlbumItem 契约一致（image/caption/date/promptText/ownerName）——
+ * 之前用的是 cap/prompt，导致演示模式 6 张种子卡片全部无配文、无命题。
+ * 种子是占位作品，没有真实图片，靠 emoji 撑卡片。
+ */
 export const ALBUM_SEED = [
-  { emoji: '🌂', cap: '一把开错方向的伞', date: '08.20', prompt: '「最没用的东西」' },
-  { emoji: '🧦', cap: '单只袜子的葬礼', date: '08.19', prompt: '「告别」' },
-  { emoji: '🍜', cap: '泡面冒的不是热气是志气', date: '08.18', prompt: '「努力」' },
-  { emoji: '🪑', cap: '这把椅子坐了八年', date: '08.17', prompt: '「资历」' },
-  { emoji: '📱', cap: '99% 电量的焦虑', date: '08.16', prompt: '「焦虑」' },
-  { emoji: '🚪', cap: '永远差一格关上的门', date: '08.15', prompt: '「差一点」' }
+  { emoji: '🌂', caption: '一把开错方向的伞', date: '08.20', promptText: '「最没用的东西」', ownerName: '阿黄' },
+  { emoji: '🧦', caption: '单只袜子的葬礼', date: '08.19', promptText: '「告别」', ownerName: '泡泡' },
+  { emoji: '🍜', caption: '泡面冒的不是热气是志气', date: '08.18', promptText: '「努力」', ownerName: '老周' },
+  { emoji: '🪑', caption: '这把椅子坐了八年', date: '08.17', promptText: '「资历」', ownerName: '软软' },
+  { emoji: '📱', caption: '99% 电量的焦虑', date: '08.16', promptText: '「焦虑」', ownerName: '大熊' },
+  { emoji: '🚪', caption: '永远差一格关上的门', date: '08.15', promptText: '「差一点」', ownerName: '阿黄' }
 ]
 
 /** 演示模式：首页昨日战报 */

@@ -58,10 +58,15 @@
         >时间快进 · 直接揭晓（演示）</button>
 
         <button
-          v-if="!isShooting"
+          v-if="!isShooting && round.isPlayer"
           class="btn btn-primary act-btn"
           @tap="goWall"
         >进入揭晓墙</button>
+
+        <!-- 受邀但没赶上这局：别再给一个必然被服务端拒绝的按钮 -->
+        <view v-if="!isShooting && !round.isPlayer" class="outsider-hint">
+          这局已经结束了。等下一局，或者让出题人再发一次卡片。
+        </view>
       </view>
     </view>
 
@@ -117,8 +122,11 @@ export default {
     isShooting() { return this.round.status === 'shooting' },
     isRevealing() { return this.round.status === 'revealing' || this.round.status === 'closed' },
     canShoot() {
-      return this.isShooting && this.round.myEntry === null && !!this.round.players.length
+      // isPlayer 必须一起判：入局可能失败（截止时间到了但清扫还没跑），
+      // 那种情况下给了快门，用户拍完上传才被服务端拒绝，白跑一趟。
+      return this.isRoundMember && this.isShooting && this.round.myEntry === null && !!this.round.players.length
     },
+    isRoundMember() { return this.round.isPlayer !== false },
     allIn() {
       return this.round.players.length > 0 && this.round.players.every((p) => p.submitted)
     },
@@ -143,7 +151,18 @@ export default {
     toast,
     async refresh() {
       try {
-        const r = await api.getRound(this.roundId)
+        let r = await api.getRound(this.roundId)
+        // 受邀者第一次点开分享卡片时还不在 players 里，先入局再渲染。
+        // 云模式下 players 只在建局时写入局主一人，没有这一步谁都没法交卷，
+        // 「人齐自动开卷」也永远不会触发。
+        if (r.isPlayer === false && r.status === 'shooting') {
+          try {
+            r = await api.joinRound(this.roundId)
+          } catch (e) {
+            // 入局失败（已截止 / 已开卷 / 并发）不阻断浏览，按只读状态展示
+            console.warn('[round] joinRound failed:', e.message)
+          }
+        }
         this.round = r
         // 局内只要还在 shooting 就持续轮询：
         // 未交卷时看别人交了没，已交卷时也要看到头像条实时点亮
@@ -331,6 +350,14 @@ export default {
 
 .act-zone { margin-top: 35rpx; padding-bottom: 60rpx; }
 .act-btn { margin-top: 19rpx; }
+.outsider-hint {
+  margin-top: 27rpx;
+  text-align: center;
+  font-family: $kai;
+  font-size: 23rpx;
+  line-height: 1.7;
+  color: $pencil;
+}
 
 .cp-title {
   font-family: $kai;

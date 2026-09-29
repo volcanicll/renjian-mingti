@@ -15,6 +15,25 @@ const UNDERCOVER_MIN = 4
 const COMBO_WINDOW = 48 * HOUR
 /** 快门限时（秒） */
 const SHOOT_LIMIT_SEC = 60
+/**
+ * 阅卷窗口：截止后仍保留的揭晓 / 猜人 / 投票时长。
+ * castVote 的放行窗口与 sweepExpired 的结算时机共用这一常量，
+ * 否则「24 小时后关闭阅卷」和「5 分钟后定时关局」会互相打架。
+ */
+const VOTE_WINDOW = 24 * HOUR
+/** 每人每局可批注的答卷数上限（防刷）。会随 wall.get 下发给页面，前端不另写一份 */
+const MAX_ANNOTATIONS = 12
+/** 口袋容量上限：防止用户文档无界增长 */
+const MAX_SAVED_PROMPTS = 20
+/** 答卷配色池：与演示模式同源，保证两端观感一致 */
+const CARD_COLORS = [
+  ['#CFE0EA', '#EFE3C2'],
+  ['#F3D9D5', '#E7E1F0'],
+  ['#D8E8D8', '#F6E7C6'],
+  ['#E3DCF2', '#CFE6E8'],
+  ['#F6E0CF', '#DCE6F3'],
+  ['#E8E2D0', '#F2D8E2']
+]
 
 /* ================= 用户 ================= */
 
@@ -27,12 +46,21 @@ async function getOrCreateUser(db, openid) {
     nickname: '同学',
     avatar: '😎',
     examNo: examNoOf(openid),
-    stats: { best: 0, lazy: 0, power: 0, combo: 0 },
+    stats: { best: 0, lazy: 0, quote: 0, power: 0, combo: 0 },
     lastSubmitTs: 0,
     createdAt: Date.now()
   }
   try {
-    await col.add({ data: user })
+    // 必须接住 add 返回的 _id：微信云数据库不会把 _id 回写到传入的 data 对象上。
+    // 之前这里漏了，导致首次创建的用户 user._id 是 undefined，
+    // 后续所有 doc(user._id).update(...) 都在悄悄 no-op ——
+    // 新用户的昵称、连击、口袋全都存不下来。
+    const addRes = await col.add({ data: user })
+    user._id = addRes && addRes._id
+    if (!user._id) {
+      const saved = await col.where({ _openid: openid }).limit(1).get()
+      if (saved.data.length) return saved.data[0]
+    }
   } catch (e) {
     // 并发创建竞态：再查一次
     const again = await col.where({ _openid: openid }).limit(1).get()
@@ -63,14 +91,29 @@ async function profileUpdate(cloud, db, openid, patch) {
   return { ...user, ...upd, stats: user.stats }
 }
 
-/** 内容安全检查（文本）：失败仅记日志不阻断（个人版 msgSecCheck 有配额限制） */
+/**
+ * 内容安全检查（文本）。
+ *
+ * 分寸感：这是熟人小局的娱乐产品，个人主体版 msgSecCheck 有配额限制，
+ * 「接口调用不了」不能阻断正常用户发内容 —— 这种情况只记日志、降级放行。
+ * 但「接口调用成功且判定为违规」必须拦下来：把返回值整个丢掉，
+ * 等于内容安全只写在文档里，对审核毫无意义。
+ */
 async function secCheck(cloud, text, what) {
+  if (!text) return
+  let risky = false
+  let unavailable = ''
   try {
-    // eslint-disable-next-line no-unused-vars
     const r = await cloud.openapi.security.msgSecCheck({ content: text })
+    const suggest = r && r.result && r.result.suggest
+    if (suggest === 'risky') risky = true
   } catch (e) {
-    console.warn(`[secCheck] ${what} 检查未通过或不可用:`, e.errCode || e.message)
+    // 旧版接口在命中违规时直接抛 87014，也要当成违规而不是「不可用」
+    if (e && String(e.errCode) === '87014') risky = true
+    else unavailable = (e && (e.errCode || e.message)) || 'unknown'
   }
+  if (risky) throw new Error(`${what}没通过内容检查，换一句吧`)
+  if (unavailable) console.warn(`[secCheck] ${what} 检查不可用，按降级放行:`, unavailable)
 }
 
 /* ================= 工具 ================= */
@@ -111,6 +154,20 @@ function todayStr() {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * 东八区「第几天」序号。官方每日题的编号由日期推导，而不是取全局局号计数器——
+ * 否则每次 bootstrap（首页 onShow 都会调）都会 inc 一次 counters/roundSeq，
+ * 既烧号又让「第 N 题」每回一次首页就变号。
+ */
+function dayIndexUTC8() {
+  return Math.floor((Date.now() + 8 * HOUR) / (24 * HOUR))
+}
+
+/** 官方每日题编号：与演示模式同一公式，保证两端显示一致 */
+function dailyPromptNo() {
+  return 1000 + (dayIndexUTC8() % 500)
+}
+
 /* ================= 今日命题 / bootstrap ================= */
 
 async function pickTodayPrompt(db) {
@@ -133,7 +190,9 @@ async function bootstrap(cloud, db, openid) {
   const user = await getOrCreateUser(db, openid)
 
   const promptDoc = await pickTodayPrompt(db)
-  const no = await nextRoundNo(db)
+  // 注意：这里绝不能调 nextRoundNo —— bootstrap 是读接口且会被反复调用，
+  // 全局局号只在 createRound 里分配。每日题编号由日期推导（与演示模式一致）。
+  const no = dailyPromptNo()
   const today = promptDoc
     ? { promptId: promptDoc._id, no, text: promptDoc.text }
     : { promptId: '', no, text: '拍下你此刻最想分享的一秒。' }
@@ -152,7 +211,8 @@ async function bootstrap(cloud, db, openid) {
     cards.push(await roundCard(cloud, db, r, cnt, openid))
   }
 
-  // 昨日战报：最近一局含我且已结算的
+  // 昨日战报：最近一局含我且已结算的。
+  // best / lazy 各自可能为 null（某一奖项无人投票时），页面必须逐项判空。
   let yesterdayReport = null
   const closed = roundsRes.data.find((r) => r.status === 'closed' && r.result && r.result.awards)
   if (closed) {
@@ -163,14 +223,16 @@ async function bootstrap(cloud, db, openid) {
       best: a.best ? { ownerName: a.best.ownerName, caption: a.best.caption } : null,
       lazy: a.lazy ? { ownerName: a.lazy.ownerName, caption: a.lazy.caption } : null
     }
-    if (!yesterdayReport.best) yesterdayReport = null
+    if (!yesterdayReport.best && !yesterdayReport.lazy) yesterdayReport = null
   }
 
   return {
     today,
     myRounds: cards,
     yesterdayReport,
-    nextTeaser: (closed && closed.result && closed.result.nextTeaser) || null,
+    // mine 是「调用者视角」字段，不能写进共享的 rounds.result，只能在读取时算
+    nextTeaser: withMine((closed && closed.result && closed.result.nextTeaser) || null, openid),
+    savedPrompts: Array.isArray(user.savedPrompts) ? user.savedPrompts : [],
     profile: {
       openid,
       nickname: user.nickname,
@@ -181,8 +243,15 @@ async function bootstrap(cloud, db, openid) {
   }
 }
 
+/** 给共享的 nextTeaser 补上调用者视角的 mine 字段 */
+function withMine(teaser, openid) {
+  if (!teaser) return null
+  return { ...teaser, mine: teaser.ownerOpenid === openid }
+}
+
 async function countEntries(db, roundId) {
-  const c = await db.collection('entries').where({ roundId }).count()
+  // 卧底作品是系统混入的，不能算进「已交 N 人」
+  const c = await db.collection('entries').where({ roundId, undercover: db.command.neq(true) }).count()
   return c.total
 }
 
@@ -274,11 +343,41 @@ async function requireRound(db, roundId) {
   return res.data
 }
 
+/** 调用者是否在这局里 */
+function isMember(r, openid) {
+  return !!(r.players || []).find((p) => p.openid === openid)
+}
+
+/**
+ * 局内动作的鉴权守卫。
+ * 只有「有 roundId」是不够的 —— 分享卡片会把 roundId 交给未入局的人，
+ * 所以揭晓墙、猜人、投票、结算都必须先确认调用者确实在这局的 players 里。
+ */
+function requireMember(r, openid) {
+  if (!isMember(r, openid)) throw new Error('你不在这局里，先点开分享卡片入局')
+  return r
+}
+
 async function getRound(cloud, db, openid, payload) {
   const r = await requireRound(db, payload.roundId)
   const entries = await db.collection('entries').where({ roundId: r._id }).get()
   const mine = entries.data.find((e) => e.openid === openid)
-  const myEntryList = mine ? await withUrls(cloud, [mine]) : []
+
+  // 注意：数据库里存的是 fileID，withUrls 默认换的是 image 字段，
+  // 所以必须先拼好 DTO 再换临时链接，否则 myEntry.image 永远是 undefined。
+  const myDto = mine
+    ? {
+        entryId: mine._id,
+        image: mine.fileID || '',
+        emoji: mine.emoji || (mine.isBlank ? '🕳️' : '📷'),
+        c1: mine.c1 || null,
+        c2: mine.c2 || null,
+        caption: mine.caption,
+        isBlank: !!mine.isBlank,
+        award: mine.award || null
+      }
+    : null
+  const myEntryList = myDto ? await withUrls(cloud, [myDto]) : []
 
   return {
     roundId: r._id,
@@ -296,16 +395,37 @@ async function getRound(cloud, db, openid, payload) {
     ownerOpenid: r.ownerOpenid,
     ownerName: ((await getUserBrief(db, r.ownerOpenid)) || {}).nickname || '同学',
     isMine: r.ownerOpenid === openid,
+    // isPlayer 让页面能判断「我是受邀者、还没入局」，从而决定是否调 round.join
+    isPlayer: isMember(r, openid),
     players: r.players.map((p) => ({ openid: p.openid, nickname: p.nickname, avatar: p.avatar, submitted: p.submitted })),
-    myEntry: myEntryList.length
-      ? {
-          entryId: myEntryList[0]._id,
-          image: myEntryList[0].image,
-          caption: myEntryList[0].caption,
-          award: myEntryList[0].award || null
-        }
-      : null
+    myEntry: myEntryList.length ? myEntryList[0] : null
   }
+}
+
+/**
+ * 入局：受邀者点开分享卡片后把自己写进 players。
+ * 没有这一步，云模式下 players 永远只有局主一人，除了局主没人能交卷，
+ * 「人齐自动开卷」也就永远不会触发。
+ * 幂等：已入局直接返回；已开卷或已过截止时间则拒绝。
+ */
+async function joinRound(cloud, db, openid, payload) {
+  const r = await requireRound(db, payload.roundId)
+  if (isMember(r, openid)) return getRound(cloud, db, openid, { roundId: r._id })
+  if (r.status !== 'shooting') throw new Error('这局已经开始阅卷了，等下一局吧')
+  if (Date.now() > r.deadlineTs) throw new Error('这局已经截止了，等下一局吧')
+
+  const user = await getOrCreateUser(db, openid)
+  // 用 _.push 原子追加，不要「读整个 players 数组再整体写回」：
+  // 群里几个人同时点开分享卡片时，整体写回会互相覆盖（后写的把先加入的人挤掉），
+  // 也可能把别人刚写上的 submitted:true 抹掉，导致「人齐自动开卷」永远不触发。
+  await db.collection('rounds').doc(r._id).update({
+    data: {
+      players: db.command.push([
+        { openid, nickname: user.nickname, avatar: user.avatar, submitted: false }
+      ])
+    }
+  })
+  return getRound(cloud, db, openid, { roundId: r._id })
 }
 
 async function revealRound(cloud, db, openid, payload) {
@@ -317,6 +437,7 @@ async function revealRound(cloud, db, openid, payload) {
   if (!allIn && !expired) throw new Error('还有人没交卷，再等等')
   await db.collection('rounds').doc(r._id).update({ data: { status: 'revealing' } })
   await ensureUndercover(cloud, db, r)
+  await notifyRevealed(cloud, r)
   return { ok: true }
 }
 
@@ -355,12 +476,18 @@ async function submitEntry(cloud, db, openid, payload) {
   }
 
   const now = Date.now()
+  // 配色由 openid+roundId 稳定推导（云函数的局文档不含 entries 数组），同局不同人不同色
+  const palette = CARD_COLORS[hashStr(openid + r._id) % CARD_COLORS.length]
   await db.collection('entries').add({
     data: {
       roundId: r._id,
       openid,
       fileID,
       isBlank: blank,
+      // 与演示模式同源的展示字段，页面 polaroid-photo 直接消费
+      emoji: blank ? '🕳️' : '📷',
+      c1: palette[0],
+      c2: palette[1],
       caption: blank
         ? '（白卷 —— 本人放弃作答，放弃本身即是作品）'
         : (caption || '（本人拒绝配文，行为本身即是作品）'),
@@ -385,6 +512,7 @@ async function submitEntry(cloud, db, openid, payload) {
   if (players.every((p) => p.submitted)) {
     await db.collection('rounds').doc(r._id).update({ data: { status: 'revealing' } })
     await ensureUndercover(cloud, db, { ...r, players })
+    await notifyRevealed(cloud, { ...r, players })
   }
   return { ok: true }
 }
@@ -464,6 +592,7 @@ async function downloadAsBase64(cloud, fileID, maxBytes) {
 
 async function getWall(cloud, db, openid, payload) {
   const r = await requireRound(db, payload.roundId)
+  requireMember(r, openid)
   if (r.status === 'shooting') throw new Error('还没到揭晓时间')
 
   const entriesRes = await db.collection('entries')
@@ -483,9 +612,14 @@ async function getWall(cloud, db, openid, payload) {
   const entryById = {}
   entriesRes.data.forEach((e) => { entryById[e._id] = e })
 
+  // 用 roundId 作种子洗牌：同一局每次进来顺序一致，
+  // 否则用户退出再进，照片会重新排列，墙上的位置记忆就失效了。
   let items = shuffle(entriesRes.data.map((e) => ({
     entryId: e._id,
     image: e.fileID,
+    emoji: e.emoji || (e.isBlank ? '🕳️' : '📷'),
+    c1: e.c1 || null,
+    c2: e.c2 || null,
     caption: e.caption,
     isMine: e.openid === openid,
     aiVerdict: e.aiVerdict,
@@ -494,7 +628,7 @@ async function getWall(cloud, db, openid, payload) {
       ? { openid: guessMap[e._id], correct: entryById[e._id].openid === guessMap[e._id] }
       : null,
     myVote: voteMap[e._id] || null
-  })))
+  })), hashStr(r._id))
   items = await withUrls(cloud, items)
 
   const hasUndercover = !!r.undercover
@@ -508,14 +642,31 @@ async function getWall(cloud, db, openid, payload) {
     reviewed: Object.keys(voteMap).length,
     hasUndercover,
     players,
-    entries: items
+    entries: items,
+    // 结算窗口与批注上限下发给页面：否则页面会给出
+    // 一个必然被服务端拒绝的「去看结果」按钮（阅卷未结束），
+    // 或者让 13 份答卷的局永远卡在「还有 N 张没审」。
+    canSettle: canSettleNow(r, openid, Date.now()),
+    settleAtTs: r.deadlineTs + VOTE_WINDOW,
+    maxAnnotations: MAX_ANNOTATIONS
   }
 }
 
-function shuffle(arr) {
+/** 以 seed 打乱的确定性洗牌（与演示模式同算法，便于两端对齐行为） */
+function shuffle(arr, seed) {
   const a = arr.slice()
+  if (seed === undefined) {
+    // 未给种子时退回随机洗牌（仅用于不要求稳定的场景）
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }
+  let s = seed * 9301 + 49297
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    s = (s * 9301 + 49297) % 233280
+    const j = Math.floor((s / 233280) * (i + 1))
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
@@ -523,6 +674,7 @@ function shuffle(arr) {
 
 async function castGuess(cloud, db, openid, payload) {
   const r = await requireRound(db, payload.roundId)
+  requireMember(r, openid)
   if (r.status === 'shooting') throw new Error('还没到揭晓时间')
   const entry = await db.collection('entries').doc(payload.entryId).get().catch(() => null)
   if (!entry || !entry.data || entry.data.roundId !== r._id) throw new Error('答卷不存在')
@@ -536,30 +688,39 @@ async function castGuess(cloud, db, openid, payload) {
   } else {
     await db.collection('guesses').add({ data: { ...key, guessedOpenid: payload.guessedOpenid } })
   }
+
   const correct = entry.data.openid === payload.guessedOpenid
   if (entry.data.undercover) {
     return { correct, actualName: correct ? '卧底 · 往届作品' : '神秘同学' }
   }
+  // 匿名铁律：只有猜对了才回填作者。
+  // 之前这里无条件返回真实昵称，等于给每个人发了一个「逐张试出作者」的接口，
+  // 揭晓墙的匿名性会被一次 guess 调用直接击穿。
+  if (!correct) return { correct, actualName: '神秘同学' }
   const actualUser = await getUserBrief(db, entry.data.openid)
   return { correct, actualName: (actualUser && actualUser.nickname) || '神秘同学' }
 }
 
 async function castVote(cloud, db, openid, payload) {
   const r = await requireRound(db, payload.roundId)
+  requireMember(r, openid)
   if (r.status === 'shooting') throw new Error('还没开卷，先等等')
   if (r.status !== 'revealing') throw new Error('这局已经结算了')
   if (!['best', 'lazy', 'quote'].includes(payload.tag)) throw new Error('批注标签不合法')
-  if (Date.now() > r.deadlineTs + 24 * HOUR) throw new Error('阅卷通道已关闭')
+  if (Date.now() > r.deadlineTs + VOTE_WINDOW) throw new Error('阅卷通道已关闭')
 
   const entry = await db.collection('entries').doc(payload.entryId).get().catch(() => null)
   if (!entry || !entry.data || entry.data.roundId !== r._id) throw new Error('答卷不存在')
 
   const key = { roundId: r._id, voterOpenid: openid, entryId: payload.entryId }
   const exist = await db.collection('votes').where(key).limit(1).get()
-  if (exist.data.length) {
-    await db.collection('votes').doc(exist.data[0]._id).update({ data: { tag: payload.tag } })
-  } else {
+  if (!exist.data.length) {
+    // 防刷：每人每局可批注的答卷数上限（config.MAX_ANNOTATIONS 的服务端落实）
+    const mine = await db.collection('votes').where({ roundId: r._id, voterOpenid: openid }).count()
+    if (mine.total >= MAX_ANNOTATIONS) throw new Error(`一局最多批注 ${MAX_ANNOTATIONS} 张，留点给别的同学`)
     await db.collection('votes').add({ data: { ...key, tag: payload.tag, createdAt: Date.now() } })
+  } else {
+    await db.collection('votes').doc(exist.data[0]._id).update({ data: { tag: payload.tag } })
   }
   return { ok: true }
 }
@@ -603,6 +764,7 @@ async function settleCore(cloud, db, r) {
     .where({ roundId: r._id, aiVerdict: db.command.neq('off') })
     .orderBy('createdAt', 'asc')
     .limit(100)
+    .get()
   const entries = entriesRes.data
   const byId = {}
   entries.forEach((e) => { byId[e._id] = e })
@@ -730,14 +892,69 @@ async function notifyWinner(cloud, result, round) {
   }
 }
 
+/**
+ * 开卷通知：告诉已交卷的同学「你参与的局已揭晓」。
+ * 前端 round 页会为这个模板申请订阅授权（ROUND_REVEALED），
+ * 云函数这边之前一直没有发送方 —— 用户被白问一次授权。
+ * 逐人 try/catch：一个人授权失效不能影响其他人。
+ */
+async function notifyRevealed(cloud, round) {
+  const tmplId = process.env.TMPL_ROUND_REVEALED
+  if (!tmplId) return
+  const targets = (round.players || []).map((p) => p.openid).filter(Boolean)
+  for (const openid of targets) {
+    try {
+      await cloud.openapi.subscribeMessage.send({
+        touser: openid,
+        templateId: tmplId,
+        page: `pages/wall/index?roundId=${round._id}`,
+        data: {
+          thing1: { value: String(round.promptText || '').slice(0, 20) },
+          thing2: { value: '开卷了，去揭晓墙猜猜是谁拍的'.slice(0, 20) }
+        }
+      })
+    } catch (e) {
+      console.warn('[notifyRevealed] 订阅消息发送失败（忽略）:', e.errCode || e.message)
+    }
+  }
+}
+
+/** 结算动作：允许结算则返回 null，否则返回一个中文原因 */
+function settleBlockReason(r, openid, now) {
+  if (r.status === 'closed') return null
+  // 局主可以提前收卷：熟人小局里组织者说「好了，看结果吧」是最自然的流程，
+  // 也是唯一能在 24 小时阅卷窗口结束前拿到结果的途径。
+  if (r.ownerOpenid === openid) return null
+  if (now > r.deadlineTs + VOTE_WINDOW) return null
+  return '阅卷还没结束，等出题人收卷'
+}
+
+/** 谁可以立刻结算（给页面判断按钮状态用） */
+function canSettleNow(r, openid, now) {
+  return settleBlockReason(r, openid, now) === null
+}
+
 /** settle action：结算 + 组装调用者视角结果 */
 async function settleAction(cloud, db, openid, payload) {
-  const r = await requireRound(db, payload.roundId)
-  const expired = Date.now() > r.deadlineTs
-  const allIn = r.players.every((p) => p.submitted)
-  if (!expired && !(r.ownerOpenid === openid && allIn) && r.status !== 'closed') {
-    throw new Error('还没到揭晓时间')
+  let r = await requireRound(db, payload.roundId)
+  requireMember(r, openid)
+
+  const now = Date.now()
+
+  // 还在交卷中且没到点 → 不能结算
+  if (r.status === 'shooting') {
+    if (now <= r.deadlineTs) throw new Error('还没到揭晓时间')
+    // 到点了但清扫还没跑：这里自己补上开卷，绝不能让结算把整个阅卷阶段跳过。
+    // 之前直接从 shooting 结算，rounds 会 shooting → closed，
+    // 阅卷期根本不存在，奖项必然三个全空。
+    await db.collection('rounds').doc(r._id).update({ data: { status: 'revealing' } })
+    await ensureUndercover(cloud, db, r)
+    await notifyRevealed(cloud, r)
+    r = { ...r, status: 'revealing' }
   }
+
+  const blocked = settleBlockReason(r, openid, now)
+  if (blocked) throw new Error(blocked)
 
   const result = await settleCore(cloud, db, r)
   const me = await getOrCreateUser(db, openid)
@@ -774,28 +991,64 @@ async function settleAction(cloud, db, openid, payload) {
       hasUndercover: !!result.undercover
     },
     undercover: result.undercover || null,
-    nextTeaser: result.nextTeaser || null,
+    nextTeaser: withMine(result.nextTeaser || null, openid),
     gift: result.gift || null,
     players: (r.players || []).map((p) => ({ openid: p.openid, nickname: p.nickname, avatar: p.avatar }))
   }
 }
 
-/** 定时清扫：过期局自动结算 */
+/**
+ * 定时清扫。必须分两段，不能直接把过期的 shooting 局结算掉：
+ *
+ * 1. shooting 过期 → 推进到 revealing（并决定是否混卧底），把阅卷 / 猜人 / 投票的机会
+ *    留给玩家。之前直接从 shooting 结算，2 小时闪电局又常常人不齐，
+ *    结果就是「一局到点变成三个奖项全空缺」，阅卷阶段根本不存在。
+ * 2. revealing 且超过「截止时间 + 阅卷窗口」→ 才真正结算。
+ *
+ * 这样 castVote 里的 VOTE_WINDOW 才是可达的，两处规则不再互相打架。
+ */
 async function sweepExpired(cloud, db) {
-  const res = await db.collection('rounds')
-    .where({ status: db.command.in(['shooting', 'revealing']), deadlineTs: db.command.lt(Date.now()) })
+  const now = Date.now()
+  let opened = 0
+  let settled = 0
+  const openedIds = {}
+
+  // 第一段：过期未开卷 → 开卷，进入阅卷期
+  const shooting = await db.collection('rounds')
+    .where({ status: 'shooting', deadlineTs: db.command.lt(now) })
     .limit(10)
     .get()
-  let swept = 0
-  for (const r of res.data) {
+  for (const r of shooting.data) {
     try {
-      await settleCore(cloud, db, r)
-      swept += 1
+      await db.collection('rounds').doc(r._id).update({ data: { status: 'revealing' } })
+      await ensureUndercover(cloud, db, r)
+      await notifyRevealed(cloud, r)
+      openedIds[r._id] = true
+      opened += 1
     } catch (e) {
-      console.error(`[sweepExpired] round=${r._id}`, e)
+      console.error(`[sweepExpired] open round=${r._id}`, e)
     }
   }
-  return swept
+
+  // 第二段：阅卷期也结束了 → 结算。
+  // 必须排掉本轮刚开卷的局：一个已经过期超过阅卷窗口的局，
+  // 如果刚在第一段被开卷，第二段的条件也会命中它，
+  // 结果就是「开卷即结算」，阅卷期同样等于不存在（部署后定时器停了 24 小时更容易撞上）。
+  const revealing = await db.collection('rounds')
+    .where({ status: 'revealing', deadlineTs: db.command.lt(now - VOTE_WINDOW) })
+    .limit(10)
+    .get()
+  for (const r of revealing.data) {
+    if (openedIds[r._id]) continue
+    try {
+      await settleCore(cloud, db, r)
+      settled += 1
+    } catch (e) {
+      console.error(`[sweepExpired] settle round=${r._id}`, e)
+    }
+  }
+
+  return { opened, settled }
 }
 
 /* ================= 年鉴 / 二维码 / AI 出题 ================= */
@@ -813,7 +1066,10 @@ async function getAlbum(cloud, db) {
     const d = new Date(r.result.settledAt || r.createdAt)
     items.push({
       entryId: b.entryId,
-      image: b.fileID,
+      // rounds.result.awards.best 存的是已经映射过的 DTO（字段名是 image），
+      // 不是数据库里的原始答卷（那里才叫 fileID）。之前读 b.fileID 恒为 undefined，
+      // 导致云模式年鉴永远拿不到图，只能退化成 emoji 占位。
+      image: b.image || '',
       caption: b.caption,
       date: `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`,
       promptText: `「${r.promptText}」`,
@@ -824,8 +1080,26 @@ async function getAlbum(cloud, db) {
 }
 
 async function getQrCode(cloud, db, openid, payload) {
+  const scene = String(payload.roundId || '').slice(-8) || 'home'
+
+  // 鉴权与存在性检查放在 try 之外：下面的 try 是给「平台接口不可用」兜底的，
+  // 不能把「没有权限」也吞成 { url: null }。
+  // 这个 action 会往局文档写 qrFileID，所以必须是局内成员。
+  let round = null
+  if (payload.roundId) {
+    round = await requireRound(db, payload.roundId)
+    requireMember(round, openid)
+  }
+
   try {
-    const scene = String(payload.roundId || '').slice(-8) || 'home'
+    // 先看这局是否已经生成过：复用同一个云存储文件，避免每次调用都新建文件，
+    // 也避免把 wxacode.getUnlimited 的每日配额当免费接口刷。
+    // 注意缓存的是 fileID 而不是临时 URL —— 临时 URL 会过期。
+    if (round && round.qrFileID) {
+      const fresh = await cloud.getTempFileURL({ fileList: [round.qrFileID] }).catch(() => null)
+      const u = fresh && fresh.fileList && fresh.fileList[0] && fresh.fileList[0].tempFileURL
+      if (u) return { url: u }
+    }
     const qr = await cloud.openapi.wxacode.getUnlimited({
       scene: 'r=' + scene,
       page: 'pages/home/index',
@@ -833,10 +1107,15 @@ async function getQrCode(cloud, db, openid, payload) {
       envVersion: 'release'
     })
     if (!qr || !qr.buffer) return { url: null }
+    // 路径确定性：同一局只占用一个云存储文件
     const up = await cloud.uploadFile({
-      cloudPath: `qr/${scene}-${Date.now()}.png`,
+      cloudPath: `qr/${scene}.png`,
       fileContent: qr.buffer
     })
+    if (round) {
+      await db.collection('rounds').doc(round._id).update({ data: { qrFileID: up.fileID } })
+        .catch(() => {})
+    }
     const urls = await cloud.getTempFileURL({ fileList: [up.fileID] })
     return { url: (urls.fileList[0] && urls.fileList[0].tempFileURL) || null }
   } catch (e) {
@@ -933,11 +1212,97 @@ async function aiPromptAction(cloud, db, openid, payload) {
   return { text: (p && p.text) || '拍下你此刻说不出口的那句话。' }
 }
 
+/* ================= 口袋：今天存下、以后想玩的题 ================= */
+
+/** 收进口袋。同一 promptId 只存一份，容量上限 MAX_SAVED_PROMPTS。 */
+async function savePrompt(cloud, db, openid, payload) {
+  const text = String(payload.text || '').trim().slice(0, 40)
+  if (!text) throw new Error('题不能是空卷')
+  const promptId = String(payload.promptId || '').trim()
+  if (!promptId) throw new Error('这道题没有编号，存不了')
+
+  const user = await getOrCreateUser(db, openid)
+  const list = Array.isArray(user.savedPrompts) ? user.savedPrompts.slice() : []
+  if (!list.some((q) => q.promptId === promptId)) {
+    list.unshift({
+      promptId,
+      no: Number(payload.no) || 0,
+      text,
+      savedAt: Date.now()
+    })
+  }
+  const saved = list.slice(0, MAX_SAVED_PROMPTS)
+  await db.collection('users').doc(user._id).update({ data: { savedPrompts: saved } })
+  return saved
+}
+
+/** 从口袋移除 */
+async function unsavePrompt(cloud, db, openid, payload) {
+  const promptId = String(payload.promptId || '').trim()
+  const user = await getOrCreateUser(db, openid)
+  const list = Array.isArray(user.savedPrompts) ? user.savedPrompts : []
+  const saved = list.filter((q) => q.promptId !== promptId)
+  await db.collection('users').doc(user._id).update({ data: { savedPrompts: saved } })
+  return saved
+}
+
+/* ================= 举报 ================= */
+
+/**
+ * 举报一张答卷 / 一局。UGC 类目审核要求「有效的内容审核机制」，
+ * 之前前端只是弹个框然后把用户填的内容丢掉，等于没有举报通道。
+ * 这里落库，管理员可在云开发控制台读取 reports 集合处理。
+ */
+async function reportCreate(cloud, db, openid, payload) {
+  const reason = String(payload.reason || '').trim().slice(0, 200)
+  if (reason.length < 2) throw new Error('简单说明一下情况，老师才知道怎么处理')
+
+  let roundId = String(payload.roundId || '').trim()
+  let entryId = String(payload.entryId || '').trim()
+
+  // 带上答卷时校验它确实属于这一局，避免写入无效引用
+  if (entryId) {
+    const entry = await db.collection('entries').doc(entryId).get().catch(() => null)
+    if (!entry || !entry.data) throw new Error('这张答卷不存在或已被删除')
+    if (roundId && entry.data.roundId !== roundId) throw new Error('答卷和局对不上')
+    roundId = roundId || entry.data.roundId
+    // 针对具体答卷的举报必须先确认你在这一局里：
+    // 否则任何登录用户都能拿着一个 entryId 往审核队列里灌内容
+    const target = await requireRound(db, roundId)
+    requireMember(target, openid)
+  } else if (roundId) {
+    // 针对整局的举报同理
+    const target = await requireRound(db, roundId)
+    requireMember(target, openid)
+  }
+
+  // 去重：同一人对同一个目标只保留一条待处理举报。
+  // 这是任何登录用户都能写的接口，没有这道闸门就是一个无上限的写入口。
+  const dup = await db.collection('reports')
+    .where({ reporterOpenid: openid, roundId: roundId || '', entryId: entryId || '', status: 'open' })
+    .limit(1)
+    .get()
+  if (dup.data.length) throw new Error('你已经举报过了，老师正在处理')
+
+  await db.collection('reports').add({
+    data: {
+      reporterOpenid: openid,
+      roundId: roundId || '',
+      entryId: entryId || '',
+      reason,
+      status: 'open',
+      createdAt: Date.now()
+    }
+  })
+  return { ok: true }
+}
+
 module.exports = {
   bootstrap,
   profileUpdate,
   createRound,
   getRound,
+  joinRound,
   revealRound,
   submitEntry,
   getWall,
@@ -948,5 +1313,8 @@ module.exports = {
   sweepExpired,
   getAlbum,
   getQrCode,
-  aiPromptAction
+  aiPromptAction,
+  savePrompt,
+  unsavePrompt,
+  reportCreate
 }

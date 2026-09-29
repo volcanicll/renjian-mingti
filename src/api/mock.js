@@ -20,6 +20,12 @@ const UNDERCOVER_MIN = 4
 const COMBO_WINDOW = 48 * HOUR
 /** 快门限时（秒）：超时不强制，但会催 */
 const SHOOT_LIMIT_SEC = 60
+/** 口袋容量上限：与云实现保持一致 */
+const MAX_SAVED_PROMPTS = 20
+/** 阅卷窗口：与云实现 game.js 的 VOTE_WINDOW 同一语义（演示模式不强制） */
+const VOTE_WINDOW = 24 * HOUR
+/** 每人每局批注上限：与云实现 game.js 的 MAX_ANNOTATIONS 同一语义 */
+const MAX_ANNOTATIONS = 12
 
 /* ---------- 工具 ---------- */
 const now = () => Date.now()
@@ -54,10 +60,12 @@ function load() {
 
 function fresh() {
   return {
-    profile: { ...ME, examNo: '1024', stats: { best: 7, lazy: 3, power: 1, combo: 0 }, lastSubmitTs: 0 },
+    profile: { ...ME, examNo: '1024', stats: { best: 7, lazy: 3, power: 1, combo: 0, quote: 0 }, lastSubmitTs: 0 },
     rounds: {},
     album: ALBUM_SEED.slice(),
     usedPrompts: [],
+    savedPrompts: [],   // 口袋：今天存下、以后想玩的题
+    reports: [],        // 举报记录：演示模式无仲裁后台，仅本地留存
     roundSeq: 1024
   }
 }
@@ -68,16 +76,20 @@ const db = () => {
   if (!cache) {
     cache = load()
     // 兼容旧存档：补齐 v2 字段
-    if (!cache.profile.stats) cache.profile.stats = { best: 0, lazy: 0, power: 0, combo: 0 }
+    if (!cache.profile.stats) cache.profile.stats = { best: 0, lazy: 0, power: 0, combo: 0, quote: 0 }
     if (typeof cache.profile.stats.combo !== 'number') cache.profile.stats.combo = 0
+    if (typeof cache.profile.stats.quote !== 'number') cache.profile.stats.quote = 0
     if (!cache.profile.lastSubmitTs) cache.profile.lastSubmitTs = 0
+    if (!Array.isArray(cache.savedPrompts)) cache.savedPrompts = []
+    if (!Array.isArray(cache.reports)) cache.reports = []
   }
   return cache
 }
 
-/** 今日官方命题：按日期确定性轮换 */
+/** 今日官方命题：按东八区日期确定性轮换（与云函数 dailyPromptNo 同一口径） */
 function todayPrompt() {
-  const day = Math.floor(now() / (24 * HOUR))
+  // 之前用 UTC 天数，会让演示模式在北京时间早上 8 点换题而不是零点
+  const day = Math.floor((now() + 8 * HOUR) / (24 * HOUR))
   const p = PROMPT_POOL[day % PROMPT_POOL.length]
   return { promptId: day % PROMPT_POOL.length, no: 1000 + (day % 500), text: p.text }
 }
@@ -219,7 +231,15 @@ function ensureSettleResult(r) {
     let bestId = null, bestN = 0
     Object.entries(m).forEach(([id, n]) => {
       if (!awardable.find((x) => x.entryId === id)) return
-      if (n > bestN) { bestN = n; bestId = id }
+      if (n > bestN) { bestN = n; bestId = id; return }
+      // 并列时取交卷更早者 —— 与云函数 topOf 同一规则（ARCHITECTURE.md §结算）。
+      // 之前只判 n > bestN，并列就退化成对象插入顺序，
+      // 而 5 位 NPC 循环投票时「≥3 张可评奖答卷就必然并列」，等于最绝奖基本靠哈希决定。
+      if (n === bestN && bestId) {
+        const cur = r.entries.find((x) => x.entryId === id)
+        const hold = r.entries.find((x) => x.entryId === bestId)
+        if (cur && hold && cur.createdAt < hold.createdAt) bestId = id
+      }
     })
     if (!bestId) return null
     const e = r.entries.find((x) => x.entryId === bestId)
@@ -256,6 +276,7 @@ function ensureSettleResult(r) {
     if (awards.best.ownerOpenid === ME.openid) st.profile.stats.best += 1
   }
   if (awards.lazy && awards.lazy.ownerOpenid === ME.openid) st.profile.stats.lazy += 1
+  if (awards.quote && awards.quote.ownerOpenid === ME.openid) st.profile.stats.quote += 1
   save()
 
   // 我的猜人成绩（含抓卧底）
@@ -305,6 +326,7 @@ const mockApi = {
       myRounds,
       yesterdayReport: YESTERDAY_REPORT,
       nextTeaser,
+      savedPrompts: st.savedPrompts,
       profile: st.profile
     })
   },
@@ -359,6 +381,29 @@ const mockApi = {
     return pick.text
   },
 
+  /** 收进口袋：同一 promptId 只存一次，容量上限与云实现一致 */
+  savePrompt({ promptId, no, text }) {
+    const st = db()
+    const t = (text || '').trim().slice(0, 40)
+    if (!t) return Promise.reject(new Error('题不能是空卷'))
+    const id = String(promptId || '').trim()
+    if (!id) return Promise.reject(new Error('这道题没有编号，存不了'))
+    if (!st.savedPrompts.some((q) => q.promptId === id)) {
+      st.savedPrompts.unshift({ promptId: id, no: Number(no) || 0, text: t, savedAt: now() })
+    }
+    st.savedPrompts = st.savedPrompts.slice(0, MAX_SAVED_PROMPTS)
+    save()
+    return Promise.resolve(st.savedPrompts)
+  },
+
+  /** 从口袋移除 */
+  unsavePrompt(promptId) {
+    const st = db()
+    st.savedPrompts = st.savedPrompts.filter((q) => q.promptId !== promptId)
+    save()
+    return Promise.resolve(st.savedPrompts)
+  },
+
   generateAiPrompt() {
     return new Promise((resolve) => {
       setTimeout(() => resolve({ text: mockApi._aiPick() }), 600)
@@ -384,6 +429,9 @@ const mockApi = {
       ownerOpenid: r.ownerOpenid,
       ownerName: npcName(r.ownerOpenid),
       isMine: r.ownerOpenid === ME.openid,
+      // 演示模式里「我」在每一局创建时就已经入场，所以恒为 true。
+      // 云模式需要这个字段判断受邀者是否还要调 joinRound。
+      isPlayer: true,
       submittedCount: r.entries.filter((e) => !e.undercover).length,
       hasUndercover: !!r.undercover,
       players: r.players.map((p) => ({ openid: p.openid, nickname: p.nickname, avatar: p.avatar, submitted: p.submitted })),
@@ -481,7 +529,12 @@ const mockApi = {
       reviewed: Object.keys(myVotes).length,
       hasUndercover,
       players,
-      entries: shuffled
+      entries: shuffled,
+      // 与云实现同形。演示模式是本地排练，不设阅卷窗口（isDev 放开），
+      // 所以恒为可结算，避免演示时被服务端规则挡住。
+      canSettle: true,
+      settleAtTs: r.deadlineTs + VOTE_WINDOW,
+      maxAnnotations: MAX_ANNOTATIONS
     })
   },
 
@@ -554,7 +607,33 @@ const mockApi = {
   },
 
   getPosterQr() {
-    return Promise.resolve(null)
+    // 与云实现同形：一律返回 { url }，演示模式用假码兜底
+    return Promise.resolve({ url: null })
+  },
+
+  /** 入局：演示模式建局时「我」已经入场，这里保持幂等语义与云实现对称 */
+  joinRound(roundId) {
+    const r = db().rounds[roundId]
+    if (!r) return Promise.reject(new Error('局不存在或已过期'))
+    if (!r.players.some((p) => p.openid === ME.openid)) {
+      r.players.push({
+        openid: ME.openid,
+        nickname: db().profile.nickname,
+        avatar: db().profile.avatar,
+        submitted: false
+      })
+      save()
+    }
+    return mockApi.getRound(roundId)
+  },
+
+  /** 举报：演示模式无仲裁后台，仅本地留存，保证前端链路可跑通 */
+  reportEntry({ roundId, entryId, reason }) {
+    const text = (reason || '').trim()
+    if (text.length < 2) return Promise.reject(new Error('简单说明一下情况，老师才知道怎么处理'))
+    db().reports.push({ roundId: roundId || '', entryId: entryId || '', reason: text, createdAt: now() })
+    save()
+    return Promise.resolve({ ok: true })
   }
 }
 

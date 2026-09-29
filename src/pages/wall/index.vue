@@ -42,8 +42,16 @@
       <view v-else class="w-empty">答卷都跑题被拦下了。荒诞今天缺席。</view>
 
       <view class="w-actions">
-        <button class="btn btn-primary" @tap="tryResult">完成阅卷 · 去看结果</button>
-        <button class="btn w-skip" @tap="goResult(true)">直接去看结果</button>
+        <template v-if="canSettle">
+          <button class="btn btn-primary" @tap="tryResult">完成阅卷 · 去看结果</button>
+          <button class="btn w-skip" @tap="goResult(true)">直接去看结果</button>
+        </template>
+        <!-- 阅卷窗口没结束、且你不是出题人：结算会被服务端拒绝，
+             所以这里不给按钮，直接把规则说清楚 -->
+        <view v-else class="w-wait">
+          <view class="w-wait-main">阅卷通道还没关</view>
+          <view class="w-wait-sub">出题人随时可以收卷；否则再过 {{ settleLeftText }} 自动出结果</view>
+        </view>
       </view>
     </view>
 
@@ -105,6 +113,7 @@
             @tap="castVote('quote')"
           >📝 金句</button>
         </view>
+        <view class="d-report" @tap="reportCur">举报这张答卷</view>
         <button class="btn d-close" @tap="detailShow = false">关闭，继续阅卷</button>
       </template>
     </exam-sheet>
@@ -132,12 +141,29 @@ export default {
       hasUndercover: false,
       detailShow: false,
       curIdx: -1,
+      // 由 wall.get 下发：谁能结算、结算窗口何时结束、每人批注上限
+      canSettle: true,
+      settleAtTs: 0,
+      maxAnnotations: 0,
       // 本地猜人结果：entryId -> { openid, correct, actualName }
       guessLocal: {}
     }
   },
   computed: {
     cur() { return this.curIdx >= 0 ? this.entries[this.curIdx] : null },
+    /** 批注上限存在时，「审满」的目标就是 min(总数, 上限) */
+    reviewTarget() {
+      if (!this.maxAnnotations) return this.total
+      return Math.min(this.total, this.maxAnnotations)
+    },
+    settleLeftText() {
+      const diff = this.settleAtTs - Date.now()
+      if (!this.settleAtTs || diff <= 0) return ''
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      if (h >= 1) return `${h} 小时 ${m} 分`
+      return `${Math.max(1, m)} 分钟`
+    },
     barPct() {
       if (!this.total) return 0
       return Math.min(100, Math.round((this.reviewed / this.total) * 100))
@@ -163,6 +189,9 @@ export default {
         this.reviewed = w.reviewed
         this.hasUndercover = !!w.hasUndercover
         this.players = w.players || []
+        if (typeof w.canSettle === 'boolean') this.canSettle = w.canSettle
+        if (w.settleAtTs) this.settleAtTs = w.settleAtTs
+        this.maxAnnotations = w.maxAnnotations || 0
         this.entries = (w.entries || []).map((e) => ({
           ...e,
           myGuess: e.myGuess || null
@@ -268,9 +297,40 @@ export default {
       this.curIdx = i
       this.detailShow = true
     },
+    /** 举报当前这张答卷：落到云函数 reports 集合，供管理员处理 */
+    reportCur() {
+      const e = this.cur
+      if (!e) return
+      uni.showModal({
+        title: '举报这张答卷',
+        content: '简单说明情况，老师会处理的。',
+        editable: true,
+        placeholderText: '这张答卷有什么问题',
+        success: async (r) => {
+          if (!r.confirm) return
+          const reason = (r.content || '').trim()
+          if (reason.length < 2) {
+            toast('简单说明一下情况，老师才知道怎么处理')
+            return
+          }
+          try {
+            await api.reportEntry({ roundId: this.roundId, entryId: e.entryId, reason })
+            toast('已收到，老师会处理的')
+          } catch (err) {
+            toast(err.message || '提交失败，再试一次')
+          }
+        }
+      })
+    },
     tryResult() {
-      if (this.total > 0 && this.reviewed < this.total) {
-        toast(`还有 ${this.total - this.reviewed} 张答卷没审`)
+      if (!this.canSettle) {
+        toast('阅卷还没结束，等出题人收卷')
+        return
+      }
+      // 批注有每人上限，超过上限的局不可能审满，不能因此把用户锁死
+      const target = this.reviewTarget
+      if (this.total > 0 && this.reviewed < target) {
+        toast(`还有 ${target - this.reviewed} 张答卷没审`)
         return
       }
       this.goResult()
@@ -351,6 +411,25 @@ export default {
 
 .w-actions { padding-bottom: 60rpx; }
 .w-skip { margin-top: 19rpx; }
+.w-wait {
+  margin-top: 19rpx;
+  padding: 27rpx 31rpx;
+  border: 3rpx dashed $pencil;
+  border-radius: 15rpx;
+  text-align: center;
+}
+.w-wait-main {
+  font-family: $kai;
+  font-weight: 700;
+  font-size: 27rpx;
+  letter-spacing: .2em;
+}
+.w-wait-sub {
+  margin-top: 10rpx;
+  font-size: 21rpx;
+  line-height: 1.6;
+  color: $pencil;
+}
 
 /* 详情弹层 */
 .d-nav {
@@ -489,4 +568,14 @@ export default {
   margin-bottom: 19rpx;
 }
 .d-close { margin-top: 27rpx; }
+.d-report {
+  margin-top: 27rpx;
+  text-align: center;
+  font-family: $mono;
+  font-size: 21rpx;
+  letter-spacing: .15em;
+  color: $pencil;
+  text-decoration: underline;
+  &:active { opacity: .5; }
+}
 </style>

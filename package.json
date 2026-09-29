@@ -34,7 +34,10 @@
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
-    "smoke": "esbuild scripts/smoke-mock.js --bundle --alias:@=./src --platform=node --outfile=/tmp/rmti-smoke.js && node /tmp/rmti-smoke.js"
+    "smoke": "esbuild scripts/smoke-mock.js --bundle --alias:@=./src --platform=node --outfile=/tmp/rmti-smoke.js && node /tmp/rmti-smoke.js",
+    "smoke:cloud": "esbuild scripts/cloud-smoke.js --bundle --platform=node --alias:wx-server-sdk=./scripts/fake-wx-sdk.js --outfile=/tmp/rmti-cloud.js && node /tmp/rmti-cloud.js",
+    "smoke:all": "npm run smoke && npm run smoke:cloud",
+    "verify": "npm run smoke:all && npm run build:mp-weixin"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020420260813003",

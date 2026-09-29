@@ -93,6 +93,7 @@
 import api, { isDemo } from '@/api'
 import { toast } from '@/composables/useToast'
 import { store, bootstrap } from '@/store'
+import { goNav } from '@/utils/nav'
 
 export default {
   data() {
@@ -117,13 +118,27 @@ export default {
       goNav('/pages/rules/index')
     },
     reportEntry() {
+      // 举报必须真的落库：UGC 类目审核要求有效的内容审核通道，
+      // 只弹个框把用户填的内容丢掉，等于没有举报入口。
+      // 这里提交到云函数 reports 集合，管理员在云开发控制台处理。
       uni.showModal({
         title: '举报一张答卷',
         content: '简单说明情况，老师会处理的。',
         editable: true,
         placeholderText: '哪张答卷、什么问题',
-        success: (r) => {
-          if (r.confirm) toast('已收到，老师会处理的')
+        success: async (r) => {
+          if (!r.confirm) return
+          const reason = (r.content || '').trim()
+          if (reason.length < 2) {
+            toast('简单说明一下情况，老师才知道怎么处理')
+            return
+          }
+          try {
+            await api.reportEntry({ reason })
+            toast('已收到，老师会处理的')
+          } catch (e) {
+            toast(e.message || '提交失败，再试一次')
+          }
         }
       })
     },

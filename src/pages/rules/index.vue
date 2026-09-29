@@ -34,7 +34,7 @@
         <view class="r-title">第 4 条 · 考场纪律</view>
         <view class="r-text">
           <view>请勿未经同意拍摄他人。</view>
-          <view>答卷可随时删除或举报。</view>
+          <view>看到不合适的答卷，可在揭晓墙详情里举报，老师会处理。</view>
           <view>上传作品授权在年鉴与战报中展示，署名权归作者本人。</view>
         </view>
       </view>
